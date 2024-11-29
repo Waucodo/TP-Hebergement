@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zone 1</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #2980b9, #2c3e50);
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .header-banner {
+            background: black;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            font-size: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        .header-banner .context-menu {
+            position: relative;
+        }
+        .profile-image {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .menu {
+            display: none;
+            position: absolute;
+            top: 60px;
+            right: 0;
+            background: black;
+            color: white;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            min-width: 200px;
+            z-index: 1000;
+            word-wrap: break-word;
+        }
+        .menu span, .menu button {
+            display: block;
+            text-align: left;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .menu button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 0.9rem;
+        }
+        .menu button:hover {
+            text-decoration: underline;
+        }
+        .chart-container {
+            margin: 20px auto;
+            width: 80%;
+        }
+        .machine-image {
+            margin: 20px auto;
+            text-align: center;
+        }
+        .machine-image img {
+            max-width: 80%;
+            height: auto;
+            border-radius: 10px;
+        }
+        .alarms-bandeau {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            text-align: center;
+            padding: 10px 0;
+            border-top: 2px solid #e74c3c;
+            margin-top: 20px;
+        }
+        .alarms-bandeau h5 {
+            margin: 0;
+        }
+        .btn-return {
+            font-size: 0.9rem;
+            padding: 5px 15px;
+            color: white;
+            background: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn-return:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <!-- Bandeau supérieur -->
+    <div class="header-banner">
+        <button class="btn-return" onclick="location.href='mini_usine.html'">Retour à la vue globale</button>
+        <span>Zone 1 - Mini Usine</span>
+        <div class="context-menu">
+            <img src="Viewer.png" alt="Profile Image" class="profile-image" id="profileImage">
+            <div class="menu" id="contextMenu">
+                <span id="userRole">Utilisateur : Viewer</span>
+                <button onclick="logout()">Se déconnecter</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image de la machine -->
+    <div class="machine-image">
+        <img src="Zone 1.png" alt="Machine de Zone 1">
+    </div>
+
+    <!-- Graphique -->
+    <div class="chart-container">
+        <canvas id="lineChart"></canvas>
+    </div>
+
+    <!-- Bandeau des alarmes -->
+    <div class="alarms-bandeau">
+        <h5>Alarmes Actives :</h5>
+        <ul id="alarms-list" style="list-style: none; padding: 0;">
+            <!-- Les alarmes seront ajoutées ici dynamiquement -->
+        </ul>
+    </div>
+
+    <script>
+        // Gestion du menu contextuel
+        const contextMenu = document.getElementById('contextMenu');
+        const profileImage = document.getElementById('profileImage');
+
+        profileImage.addEventListener('click', () => {
+            contextMenu.style.display = contextMenu.style.display === 'block' ? 'none' : 'block';
+        });
+
+        window.addEventListener('click', (e) => {
+            if (!contextMenu.contains(e.target) && !profileImage.contains(e.target)) {
+                contextMenu.style.display = 'none';
+            }
+        });
+
+        function logout() {
+            localStorage.removeItem('currentUser');
+            window.location.href = 'Log.html';
+        }
+
+        // Exemple de données pour le graphique
+        const ctx = document.getElementById('lineChart').getContext('2d');
+        const lineChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Point 1', 'Point 2', 'Point 3', 'Point 4', 'Point 5'],
+                datasets: [{
+                    label: 'Données de Zone 1',
+                    data: [12, 19, 3, 5, 2],
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    fill: true,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        labels: {
+                            color: 'white'
+                        }
+                    },
+                    tooltip: {
+                        enabled: true,
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: 'white' },
+                        grid: { color: 'rgba(255, 255, 255, 0.2)' }
+                    },
+                    y: {
+                        ticks: { color: 'white' },
+                        grid: { color: 'rgba(255, 255, 255, 0.2)' }
+                    }
+                }
+            }
+        });
+
+        // Exemple d'alarmes dynamiques
+        const alarms = [
+            'Alarme 1: Température élevée',
+            'Alarme 2: Pression basse',
+            'Alarme 3: Vibration anormale'
+        ];
+
+        const alarmsList = document.getElementById('alarms-list');
+        alarms.forEach(alarm => {
+            const li = document.createElement('li');
+            li.textContent = alarm;
+            alarmsList.appendChild(li);
+        });
+
+        // Gestion de l'utilisateur connecté
+        const user = JSON.parse(localStorage.getItem('currentUser')) || { role: 'viewer' };
+        const userRoleElement = document.getElementById('userRole');
+        const menuIcon = document.querySelector('.profile-image');
+
+        if (user.role === 'admin') {
+            userRoleElement.textContent = 'Utilisateur : Admin';
+            menuIcon.src = 'Admin.png';
+        } else if (user.role === 'operator') {
+            userRoleElement.textContent = 'Utilisateur : Technicien';
+            menuIcon.src = 'Tech.png';
+        } else {
+            userRoleElement.textContent = 'Utilisateur : Viewer';
+            menuIcon.src = 'Viewer.png';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+<style>
+    .non-conforme {
+        color: red; /* Couleur du texte rouge */
+        font-weight: bold; /* Mettre le texte en gras */
+    }
+</style>

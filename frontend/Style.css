@@ -1,0 +1,72 @@
+#Titre{
+	text-align: center;
+    background-color:#000000;
+    color: #ffffff;
+      
+    font-size: xx-large;
+    font-family: fantasy;
+}
+body{
+    
+    background: linear-gradient(to right, blue, pink);
+    
+}
+
+#Continuité{
+    margin-bottom: 50px;
+    
+}
+#MAJ{
+    margin-bottom: 50px;
+}
+#thermique{
+    margin-bottom: 50px;
+}
+.col{
+    position: relative;
+    padding: 8%;
+    left : 15px;
+    max-width: fit-content;
+    border: solid;
+    border-width: 1px;
+    border-color: black;
+}
+
+#Reference{
+    text-align: center;
+}
+
+#inputPassword5{
+    width: 400px; 
+    margin-left: auto;
+    margin-right: auto;
+}
+
+#TableauHistorique{
+    position: relative;
+    padding: 1.5rem;
+    margin-left: auto;
+    margin-right: auto;
+    max-width: fit-content;
+    border: solid;
+    border-width: 1px;
+    border-color: black;
+    background-color: khaki;
+}
+ 
+#HistoriqueBordure{
+    border: solid;
+    border-width: 1px;
+    margin-left: auto;
+    margin-right: auto;
+    width: 800px;
+}
+ 
+#HistoriqueBordure legend{/*Uniquement le texte "Historique"*/
+    padding-top: 1.5rem;
+    padding-left: 15px;
+}
+.error {
+    background-color: red; /* Couleur de fond rouge */
+    color: white; /* Couleur du texte blanche */
+}

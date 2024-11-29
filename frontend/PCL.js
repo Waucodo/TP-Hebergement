@@ -1,4 +1,4 @@
-/*
+
 const ModbusRTU = require("modbus-serial");
 const client = new ModbusRTU();
 const clientZ3 = new ModbusRTU();
@@ -30,9 +30,9 @@ setInterval(async function() {
         console.error("Error reading :", err.message);
     }
 }, 1000);
-*/
+
  
- 
+/*
 //Version Node7
 var nodes7 = require('nodes7'); // This is the package name, if the repository is cloned you may need to require 'nodeS7' with uppercase S
 var conn = new nodes7;
@@ -88,3 +88,4 @@ function valuesWritten(anythingBad) {
   doneWriting = true;
   if (doneReading) { process.exit(); }
 }
+*/

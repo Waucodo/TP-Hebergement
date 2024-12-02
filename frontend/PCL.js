@@ -32,7 +32,7 @@ setInterval(async function() {
 }, 1000);
 
  
-/*
+/* NodeS7
 //Version Node7
 var nodes7 = require('nodes7'); // This is the package name, if the repository is cloned you may need to require 'nodeS7' with uppercase S
 var conn = new nodes7;

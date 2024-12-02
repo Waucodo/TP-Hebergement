@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zone 1</title>
+    <title>Zone 3</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -110,13 +110,32 @@
         .btn-return:hover {
             background: #0056b3;
         }
+        .variables-table-container {
+            margin: 20px auto;
+            width: 90%;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        table, th, td {
+            border: 1px solid white;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background: #34495e;
+        }
     </style>
 </head>
 <body>
     <!-- Bandeau supérieur -->
     <div class="header-banner">
         <button class="btn-return" onclick="location.href='mini_usine.html'">Retour à la vue globale</button>
-        <span>Zone 1 - Mini Usine</span>
+        <span>Zone 3 - Mini Usine</span>
         <div class="context-menu">
             <img src="Viewer.png" alt="Profile Image" class="profile-image" id="profileImage">
             <div class="menu" id="contextMenu">
@@ -131,9 +150,24 @@
         <img src="Zone 3.png" alt="Machine de Zone 3">
     </div>
 
-    <!-- Graphique -->
-    <div class="chart-container">
-        <canvas id="lineChart"></canvas>
+    <!-- Tableau des variables -->
+    <div class="variables-table-container">
+        <h3>Variables de la Zone 3</h3>
+        <table id="variablesTable">
+            <thead>
+                <tr>
+                    <th>Nom de la Variable</th>
+                    <th>Adresse IP</th>
+                    <th>Unité</th>
+                    <th>Seuil Min</th>
+                    <th>Seuil Max</th>
+                    <th>Valeur Actuelle</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Les variables de Zone 3 seront ajoutées ici dynamiquement -->
+            </tbody>
+        </table>
     </div>
 
     <!-- Bandeau des alarmes -->
@@ -164,77 +198,42 @@
             window.location.href = 'Log.html';
         }
 
-        // Exemple de données pour le graphique
-        const ctx = document.getElementById('lineChart').getContext('2d');
-        const lineChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: ['Point 1', 'Point 2', 'Point 3', 'Point 4', 'Point 5'],
-                datasets: [{
-                    label: 'Données de Zone 3',
-                    data: [12, 19, 3, 5, 2],
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                    fill: true,
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        display: true,
-                        labels: {
-                            color: 'white'
+        // Charger les variables de la Zone 3 depuis le backend
+        function loadZone3Variables() {
+            fetch('http://localhost:3000/api/variables?zone=Zone 3')
+                .then(response => response.json())
+                .then(data => {
+                    const variablesTable = document.getElementById('variablesTable').getElementsByTagName('tbody')[0];
+                    variablesTable.innerHTML = '';
+
+                    data.forEach(variable => {
+                        const row = variablesTable.insertRow();
+
+                        row.innerHTML = `
+                            <td>${variable.nom_variable}</td>
+                            <td>${variable.adresse_ip}</td>
+                            <td>${variable.unite}</td>
+                            <td>${variable.seuil_alerte_min}</td>
+                            <td>${variable.seuil_alerte_max}</td>
+                            <td>${variable.valeur ? variable.valeur : 'N/A'}</td>
+                        `;
+
+                        // Ajouter les alarmes au bandeau si nécessaire
+                        if ((variable.nom_variable.toLowerCase().includes('défaut') || variable.nom_variable.toLowerCase().includes('sécurité') || variable.nom_variable.toLowerCase().includes('urgence')) && variable.valeur === 0) {
+                            const alarmsList = document.getElementById('alarms-list');
+                            const li = document.createElement('li');
+                            li.textContent = variable.nom_variable;
+                            alarmsList.appendChild(li);
                         }
-                    },
-                    tooltip: {
-                        enabled: true,
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: { color: 'white' },
-                        grid: { color: 'rgba(255, 255, 255, 0.2)' }
-                    },
-                    y: {
-                        ticks: { color: 'white' },
-                        grid: { color: 'rgba(255, 255, 255, 0.2)' }
-                    }
-                }
-            }
-        });
-
-        // Exemple d'alarmes dynamiques
-        const alarms = [
-            'Alarme 1: Température élevée',
-            'Alarme 2: Pression basse',
-            'Alarme 3: Vibration anormale'
-        ];
-
-        const alarmsList = document.getElementById('alarms-list');
-        alarms.forEach(alarm => {
-            const li = document.createElement('li');
-            li.textContent = alarm;
-            alarmsList.appendChild(li);
-        });
-
-        // Gestion de l'utilisateur connecté
-        const user = JSON.parse(localStorage.getItem('currentUser')) || { role: 'viewer' };
-        const userRoleElement = document.getElementById('userRole');
-        const menuIcon = document.querySelector('.profile-image');
-
-        if (user.role === 'admin') {
-            userRoleElement.textContent = 'Utilisateur : Admin';
-            menuIcon.src = 'Admin.png';
-        } else if (user.role === 'operator') {
-            userRoleElement.textContent = 'Utilisateur : Technicien';
-            menuIcon.src = 'Tech.png';
-        } else {
-            userRoleElement.textContent = 'Utilisateur : Viewer';
-            menuIcon.src = 'Viewer.png';
+                    });
+                })
+                .catch(error => {
+                    console.error('Erreur lors du chargement des variables de la Zone 3:', error);
+                });
         }
+
+        // Charger les variables de Zone 3 au chargement de la page
+        window.onload = loadZone3Variables;
     </script>
 </body>
 </html>

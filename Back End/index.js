@@ -1,120 +1,158 @@
 const express = require('express');
-const mariadb = require('mariadb');
-const cors = require('cors'); // Importer le middleware CORS
+const mysql = require('mysql2/promise');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const path = require('path');  // Pour gérer les chemins de fichiers
 
 const app = express();
-const port = 3000;
+const PORT = 3000;
 
-// Utiliser le middleware CORS
+// Middleware pour servir le dossier frontend comme des fichiers statiques
+app.use(express.static(path.join(__dirname, 'frontend')));  // Notez que j'ai supprimé `../` pour pointer vers 'frontend' dans le même dossier que le script
+
 app.use(cors());
+app.use(bodyParser.json());
 
-// Utiliser le middleware pour traiter les requêtes JSON
-app.use(express.json());
-const pool = mariadb.createPool({
-    host: 'localhost',
+// Configuration de la base de données
+const pool = mysql.createPool({
+    host: 'db',  // Le nom du service Docker pour MariaDB
     user: 'root',
     password: 'root',
     database: 'automate',
-    connectionLimit: 10, // Augmenter la limite de connexions
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
 });
 
-// Fonction pour tester la connexion à la base de données
-pool.getConnection()
-  .then(conn => {
-    console.log("Connecté à MariaDB !");
-    conn.release(); // Libérer la connexion
-  })
-  .catch(err => {
-    console.error("Erreur de connexion à MariaDB", err);
-  });
+// Route principale (sanity check)
+app.get('/', (req, res) => {
+    res.send('API operationnelle 🚀');
+});
 
-// Route pour récupérer toutes les variables
-app.post('/variables', async (req, res) => {
-    const {
-      nom_variable,
-      adresse_ip,
-      unite,
-      seuil_alerte_min,
-      seuil_alerte_max,
-      enregistrement_modbus
-    } = req.body;
-
-    let conn;
+// Route pour recuperer des operateurs
+app.get('/api/operateurs', async (req, res) => {
+    let connection;
     try {
-      conn = await pool.getConnection(); // Obtenir une connexion
-      const result = await conn.query(
-        `INSERT INTO variables (nom_variable, adresse_ip, unite, seuil_alerte_min, seuil_alerte_max, enregistrement_modbus) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [nom_variable, adresse_ip, unite, seuil_alerte_min, seuil_alerte_max, enregistrement_modbus]
-      );
-      // Convertir insertId en un nombre classique pour sérialisation
-      res.status(201).send({ message: 'Variable insérée avec succès', id: Number(result.insertId) });
-    } catch (err) {
-      console.error('Erreur lors de l\'insertion de la variable :', err);
-      res.status(500).send({ error: 'Erreur lors de l\'insertion de la variable' });
+        connection = await pool.getConnection();
+        const [rows] = await connection.query('SELECT * FROM operateurs');
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Erreur serveur');
     } finally {
-      if (conn) conn.release(); // Libérer la connexion
+        if (connection) connection.release();
     }
-  });
+});
 
-// Route pour récupérer tous les défauts
-app.post('/defauts', async (req, res) => {
-    const {
-      id_variable,
-      type_defaut,
-      heure_detection_defaut,
-      date_detection_defaut,
-      statut
-    } = req.body;
+// Route de connexion
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
 
-    let conn;
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Nom d\'utilisateur et mot de passe requis.' });
+    }
+
+    let connection;
     try {
-      conn = await pool.getConnection(); // Obtenir une connexion
-      const result = await conn.query(
-        `INSERT INTO Defauts (id_variable, type_defaut, heure_detection_defaut, date_detection_defaut, statut) 
-         VALUES (?, ?, ?, ?, ?)`,
-        [id_variable, type_defaut, heure_detection_defaut, date_detection_defaut, statut]
-      );
-      // Convertir insertId en un nombre classique pour sérialisation
-      res.status(201).send({ message: 'Défaut inséré avec succès', id: Number(result.insertId) });
-    } catch (err) {
-      console.error('Erreur lors de l\'insertion du défaut :', err);
-      res.status(500).send({ error: 'Erreur lors de l\'insertion du défaut' });
+        connection = await pool.getConnection();
+
+        const [rows] = await connection.query(
+            'SELECT * FROM operateurs WHERE nom_operateur = ? AND password = ?',
+            [username, password]
+        );
+
+        if (rows.length > 0) {
+            const user = rows[0];
+            res.status(200).json({ id: user.id_operateur, username: user.nom_operateur, role: user.role });
+        } else {
+            res.status(401).json({ error: 'Nom d\'utilisateur ou mot de passe incorrect.' });
+        }
+    } catch (error) {
+        console.error('Erreur lors de la connexion :', error);
+        res.status(500).json({ error: 'Erreur serveur' });
     } finally {
-      if (conn) conn.release(); // Libérer la connexion
+        if (connection) connection.release();
     }
-  });
+});
 
-// Route pour récupérer tous les opérateurs
-app.post('/operateurs', async (req, res) => {
-    const {
-      nom_operateur,
-      email,
-      statut,
-      id_defaut,
-      id_variable,
-      date_derniere_action
-    } = req.body;
+// Route pour retourner la page de connexion (Log.html)
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'frontend', 'Log.html'));  // Correction du chemin pour qu'il soit en accord avec votre environnement
+});
 
-    let conn;
+// Route pour retourner la page principale (index.html) apres connexion reussie
+app.get('/index', (req, res) => {
+  res.sendFile(path.join(__dirname, 'frontend', 'index.html'));  // Correction du chemin
+});
+
+// Route pour recuperer les informations des automates (zones et adresses IP)
+app.get('/api/automates', async (req, res) => {
+    let connection;
     try {
-      conn = await pool.getConnection(); // Obtenir une connexion
-      const result = await conn.query(
-        `INSERT INTO Operateurs (nom_operateur, email, statut, id_defaut, id_variable, date_derniere_action) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [nom_operateur, email, statut, id_defaut, id_variable, date_derniere_action]
-      );
-      // Convertir insertId en un nombre classique pour sérialisation
-      res.status(201).send({ message: 'Opérateur inséré avec succès', id: Number(result.insertId) });
-    } catch (err) {
-      console.error('Erreur lors de l\'insertion de l\'opérateur :', err);
-      res.status(500).send({ error: 'Erreur lors de l\'insertion de l\'opérateur' });
+        connection = await pool.getConnection();
+        const [rows] = await connection.query('SELECT * FROM automates');
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error('Erreur lors de la recuperation des automates :', error);
+        res.status(500).send('Erreur serveur');
     } finally {
-      if (conn) conn.release(); // Libérer la connexion
+        if (connection) connection.release();
     }
-  });
+});
 
-// Démarrer le serveur
-app.listen(port, () => {
-  console.log(`Serveur démarré sur http://localhost:${port}`);
+// Route pour mettre a jour l'adresse IP d'un automate pour une zone specifique
+app.put('/api/automates/update-ip', async (req, res) => {
+    const { zone, ipAddress, modifiedBy } = req.body;
+
+    // Verification que la zone et l'adresse IP sont bien definies
+    if (!zone || !ipAddress || !modifiedBy) {
+        return res.status(400).json({ error: 'Zone, adresse IP, et utilisateur sont requis.' });
+    }
+
+    let connection;
+    try {
+        connection = await pool.getConnection();
+
+        // Recuperer l'ancienne adresse IP avant de la mettre a jour
+        const [oldData] = await connection.query('SELECT * FROM automates WHERE zone = ?', [zone]);
+
+        if (oldData.length === 0) {
+            return res.status(404).json({ error: `Zone ${zone} introuvable.` });
+        }
+
+        const ancienneIp = oldData[0].adresse_ip;
+
+        // Mise a jour de l'adresse IP dans la base de donnees pour la zone donnee
+        const updateQuery = 'UPDATE automates SET adresse_ip = ? WHERE zone = ?';
+        const [result] = await connection.query(updateQuery, [ipAddress, zone]);
+
+        if (result.affectedRows > 0) {
+            // Enregistrement de la modification dans historique_automates
+            const historiqueQuery = `
+                INSERT INTO historique_automates (id_automate, zone, ancienne_ip, nouvelle_ip, modifie_par)
+                VALUES (?, ?, ?, ?, ?)
+            `;
+            await connection.query(historiqueQuery, [
+                oldData[0].id_automate,
+                zone,
+                ancienneIp,
+                ipAddress,
+                modifiedBy
+            ]);
+
+            res.status(200).json({ message: `L'adresse IP de ${zone} a ete mise a jour a ${ipAddress}.` });
+        } else {
+            res.status(404).json({ error: `Zone ${zone} introuvable.` });
+        }
+    } catch (error) {
+        console.error('Erreur lors de la mise a jour de l\'adresse IP :', error);
+        res.status(500).json({ error: 'Erreur serveur lors de la mise a jour.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// Lancement du serveur
+app.listen(PORT, () => {
+    console.log(`Serveur backend en cours d'execution sur http://localhost:${PORT}`);
 });

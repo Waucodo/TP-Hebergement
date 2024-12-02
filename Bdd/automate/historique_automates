@@ -1,0 +1,12 @@
+-- Fichier : historique_automates.sql
+
+CREATE TABLE historique_automates (
+    id_historique INT AUTO_INCREMENT PRIMARY KEY,
+    id_automate INT NOT NULL,
+    zone VARCHAR(255) NOT NULL,
+    ancienne_ip VARCHAR(255),
+    nouvelle_ip VARCHAR(255),
+    modifie_par VARCHAR(255) NOT NULL,
+    date_modification DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_automate) REFERENCES automates(id_automate)
+);

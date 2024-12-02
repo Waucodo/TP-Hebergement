@@ -23,7 +23,7 @@
             width: 100%;
             display: flex;
             align-items: center;
-            justify-content: center; /* Centrer le titre horizontalement */
+            justify-content: center;
             position: relative;
             font-size: 1.5rem;
         }
@@ -96,6 +96,9 @@
         .cabinet h4 {
             margin-bottom: 10px;
         }
+        .cabinet p {
+            font-size: 0.9rem;
+        }
         .gear {
             position: absolute;
             top: 10px;
@@ -143,43 +146,8 @@
     <!-- Conteneur principal -->
     <div class="main-container">
         <!-- Conteneur d'armoires -->
-        <div class="cabinet-container">
-            <div class="cabinet">
-                <h4>Zone 1</h4>
-                <div class="gear" onclick="editIP('Zone 1')">
-                    <img src="Engrenage.png" alt="Engrenage">
-                </div>
-            </div>
-            <div class="cabinet">
-                <h4>Zone 2</h4>
-                <div class="gear" onclick="editIP('Zone 2')">
-                    <img src="Engrenage.png" alt="Engrenage">
-                </div>
-            </div>
-            <div class="cabinet">
-                <h4>Zone 3</h4>
-                <div class="gear" onclick="editIP('Zone 3')">
-                    <img src="Engrenage.png" alt="Engrenage">
-                </div>
-            </div>
-            <div class="cabinet">
-                <h4>Zone 4</h4>
-                <div class="gear" onclick="editIP('Zone 4')">
-                    <img src="Engrenage.png" alt="Engrenage">
-                </div>
-            </div>
-            <div class="cabinet">
-                <h4>Zone 5</h4>
-                <div class="gear" onclick="editIP('Zone 5')">
-                    <img src="Engrenage.png" alt="Engrenage">
-                </div>
-            </div>
-            <div class="cabinet">
-                <h4>Zone 6</h4>
-                <div class="gear" onclick="editIP('Zone 6')">
-                    <img src="Engrenage.png" alt="Engrenage">
-                </div>
-            </div>
+        <div class="cabinet-container" id="cabinetContainer">
+            <!-- Les armoires seront générées ici dynamiquement via JavaScript -->
         </div>
 
         <!-- Bouton Retour à la Mini Usine -->
@@ -257,10 +225,67 @@
         function saveIP() {
             const zone = document.getElementById('zoneName').value;
             const ipAddress = document.getElementById('ipAddress').value;
-            alert(`L'adresse IP pour ${zone} a été mise à jour à : ${ipAddress}`);
+
+            // Envoi de la requête au backend pour mettre à jour l'adresse IP
+            fetch('http://localhost:3000/api/automates/update-ip', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    zone: zone,
+                    ipAddress: ipAddress,
+                    modifiedBy: user.username  // Ajouter l'utilisateur qui modifie
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert(data.message); // Affiche un message de succès
+                } else if (data.error) {
+                    alert(data.error); // Affiche une erreur
+                }
+                loadAutomates(); // Recharger les zones pour mettre à jour les IP affichées
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                alert('Une erreur est survenue lors de la mise à jour de l\'adresse IP.');
+            });
+
+            // Fermer la fenêtre modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('ipModal'));
             modal.hide();
         }
+
+        // Charger les informations d'IP des automates depuis le backend
+        function loadAutomates() {
+            fetch('http://localhost:3000/api/automates')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('cabinetContainer');
+                    container.innerHTML = ''; // Efface tout avant de charger
+
+                    data.forEach(automate => {
+                        const cabinet = document.createElement('div');
+                        cabinet.classList.add('cabinet');
+                        cabinet.innerHTML = `
+                            <h4>${automate.zone}</h4>
+                            <p>IP: ${automate.adresse_ip ? automate.adresse_ip : 'Aucune IP définie'}</p>
+                            <div class="gear" onclick="editIP('${automate.zone}')">
+                                <img src="Engrenage.png" alt="Engrenage">
+                            </div>
+                        `;
+                        container.appendChild(cabinet);
+                    });
+                })
+                .catch(error => {
+                    console.error('Erreur lors du chargement des automates:', error);
+                });
+        }
+
+        // Appel de la fonction pour charger les automates au chargement de la page
+        window.onload = loadAutomates;
+
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

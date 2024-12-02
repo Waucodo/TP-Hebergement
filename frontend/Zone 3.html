@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,6 +17,7 @@
             min-height: 100vh;
             margin: 0;
         }
+
         .header-banner {
             background: black;
             color: white;
@@ -30,62 +32,30 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
             z-index: 1000;
         }
-        .header-banner .context-menu {
-            position: relative;
-        }
+
         .profile-image {
             width: 50px;
             height: 50px;
             border-radius: 50%;
             cursor: pointer;
         }
-        .menu {
-            display: none;
-            position: absolute;
-            top: 60px;
-            right: 0;
-            background: black;
-            color: white;
-            border-radius: 8px;
-            padding: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            min-width: 200px;
-            z-index: 1000;
-            word-wrap: break-word;
-        }
-        .menu span, .menu button {
-            display: block;
-            text-align: left;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-            line-height: 1.5;
-            cursor: pointer;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .menu button {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 0.9rem;
-        }
-        .menu button:hover {
-            text-decoration: underline;
-        }
+
         .chart-container {
             margin: 20px auto;
             width: 80%;
         }
+
         .machine-image {
             margin: 20px auto;
             text-align: center;
         }
+
         .machine-image img {
             max-width: 80%;
             height: auto;
             border-radius: 10px;
         }
+
         .alarms-bandeau {
             width: 100%;
             background: rgba(0, 0, 0, 0.8);
@@ -95,9 +65,11 @@
             border-top: 2px solid #e74c3c;
             margin-top: 20px;
         }
+
         .alarms-bandeau h5 {
             margin: 0;
         }
+
         .btn-return {
             font-size: 0.9rem;
             padding: 5px 15px;
@@ -107,42 +79,46 @@
             border-radius: 5px;
             cursor: pointer;
         }
+
         .btn-return:hover {
             background: #0056b3;
         }
+
         .variables-table-container {
             margin: 20px auto;
             width: 90%;
         }
+
         table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
         }
-        table, th, td {
+
+        table,
+        th,
+        td {
             border: 1px solid white;
         }
-        th, td {
+
+        th,
+        td {
             padding: 10px;
             text-align: left;
         }
+
         th {
             background: #34495e;
         }
     </style>
 </head>
+
 <body>
     <!-- Bandeau supérieur -->
     <div class="header-banner">
         <button class="btn-return" onclick="location.href='mini_usine.html'">Retour à la vue globale</button>
         <span>Zone 3 - Mini Usine</span>
-        <div class="context-menu">
-            <img src="Viewer.png" alt="Profile Image" class="profile-image" id="profileImage">
-            <div class="menu" id="contextMenu">
-                <span id="userRole">Utilisateur : Viewer</span>
-                <button onclick="logout()">Se déconnecter</button>
-            </div>
-        </div>
+        <img src="Admin.png" alt="Profile Image" class="profile-image" id="profileImage">
     </div>
 
     <!-- Image de la machine -->
@@ -179,108 +155,46 @@
     </div>
 
     <script>
-        // Gestion du menu contextuel
-        const contextMenu = document.getElementById('contextMenu');
-        const profileImage = document.getElementById('profileImage');
-
-        profileImage.addEventListener('click', () => {
-            contextMenu.style.display = contextMenu.style.display === 'block' ? 'none' : 'block';
-        });
-
-        window.addEventListener('click', (e) => {
-            if (!contextMenu.contains(e.target) && !profileImage.contains(e.target)) {
-                contextMenu.style.display = 'none';
-            }
-        });
-
-        function logout() {
-            // Requête pour déconnecter l'utilisateur
-            fetch('http://localhost:3000/logout', {
-                method: 'POST',
-                credentials: 'include'
-            }).then(() => {
-                window.location.href = 'Log.html';
-            });
-        }
-
-        // Charger les informations de l'utilisateur connecté
-        function loadCurrentUser() {
-            fetch('http://localhost:3000/api/current-user', {
-                method: 'GET',
-                credentials: 'include'  // Inclure les cookies pour obtenir la session
-            })
-            .then(response => {
-                if (response.status === 401) {
-                    // Rediriger vers la page de connexion si l'utilisateur n'est pas connecté
-                    window.location.href = 'Log.html';
-                } else {
-                    return response.json();
-                }
-            })
-            .then(user => {
-                if (user) {
-                    const userRoleElement = document.getElementById('userRole');
-                    const menuIcon = document.querySelector('.profile-image');
-
-                    if (user.role === 'admin') {
-                        userRoleElement.textContent = 'Utilisateur : Admin';
-                        menuIcon.src = 'Admin.png';
-                    } else if (user.role === 'operator') {
-                        userRoleElement.textContent = 'Utilisateur : Technicien';
-                        menuIcon.src = 'Tech.png';
-                    } else {
-                        userRoleElement.textContent = 'Utilisateur : Viewer';
-                        menuIcon.src = 'Viewer.png';
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Erreur lors de la récupération des informations de l\'utilisateur:', error);
-            });
-        }
-
         // Charger les variables de la Zone 3 depuis le backend
         function loadZone3Variables() {
-            fetch('http://localhost:3000/api/variables?zone=Zone 3', {
-                method: 'GET',
-                credentials: 'include'  // Inclure les cookies pour les sessions
-            })
-            .then(response => response.json())
-            .then(data => {
-                const variablesTable = document.getElementById('variablesTable').getElementsByTagName('tbody')[0];
-                variablesTable.innerHTML = '';
+            fetch('http://localhost:3000/api/variables?zone=Zone 3')
+                .then(response => response.json())
+                .then(data => {
+                    const variablesTable = document.getElementById('variablesTable').getElementsByTagName('tbody')[0];
+                    variablesTable.innerHTML = '';
 
-                data.forEach(variable => {
-                    const row = variablesTable.insertRow();
+                    data.forEach(variable => {
+                        const row = variablesTable.insertRow();
 
-                    row.innerHTML = `
-                        <td>${variable.nom_variable}</td>
-                        <td>${variable.adresse_ip}</td>
-                        <td>${variable.unite}</td>
-                        <td>${variable.seuil_alerte_min}</td>
-                        <td>${variable.seuil_alerte_max}</td>
-                        <td>${variable.valeur ? variable.valeur : 'N/A'}</td>
-                    `;
+                        row.innerHTML = `
+                            <td>${variable.nom_variable}</td>
+                            <td>${variable.adresse_ip}</td>
+                            <td>${variable.unite}</td>
+                            <td>${variable.seuil_alerte_min}</td>
+                            <td>${variable.seuil_alerte_max}</td>
+                            <td>${variable.valeur ? variable.valeur : 'N/A'}</td>
+                        `;
 
-                    // Ajouter les alarmes au bandeau si nécessaire
-                    if ((variable.nom_variable.toLowerCase().includes('defaut') || variable.nom_variable.toLowerCase().includes('securite') || variable.nom_variable.toLowerCase().includes('urgence')) && variable.valeur === 0) {
-                        const alarmsList = document.getElementById('alarms-list');
-                        const li = document.createElement('li');
-                        li.textContent = variable.nom_variable;
-                        alarmsList.appendChild(li);
-                    }
+                        // Ajouter les alarmes au bandeau si nécessaire
+                        if ((variable.nom_variable.toLowerCase().includes('defaut') ||
+                            variable.nom_variable.toLowerCase().includes('securite') ||
+                            variable.nom_variable.toLowerCase().includes('urgence')) &&
+                            variable.valeur === 0) {
+                            const alarmsList = document.getElementById('alarms-list');
+                            const li = document.createElement('li');
+                            li.textContent = variable.nom_variable;
+                            alarmsList.appendChild(li);
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.error('Erreur lors du chargement des variables de la Zone 3:', error);
                 });
-            })
-            .catch(error => {
-                console.error('Erreur lors du chargement des variables de la Zone 3:', error);
-            });
         }
 
-        // Charger les informations de l'utilisateur connecté et les variables de Zone 3 au chargement de la page
-        window.onload = () => {
-            loadCurrentUser();
-            loadZone3Variables();
-        };
+        // Charger les variables de Zone 3 au chargement de la page
+        window.onload = loadZone3Variables;
     </script>
 </body>
+
 </html>

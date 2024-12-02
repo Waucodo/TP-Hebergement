@@ -1,37 +1,73 @@
-
 const ModbusRTU = require("modbus-serial");
-const client = new ModbusRTU();
-const clientZ3 = new ModbusRTU();
- 
-// open connection to a tcp line API 2.4Ghz ou 5Ghz Happywifi
-client.connectTCP("172.16.1.24", { port: 502 }); //IP Z4 et port 502 OK
-client.setID(1); // Remplacez l'ID par celui de votre automate si nécessaire
- 
-clientZ3.connectTCP("172.16.1.23", { port: 502 }); //IP Z4 et port 502 OK
-clientZ3.setID(1);
- 
-setInterval(async function() {
-    try {
-    //Lecture
-      const dataZ4Coils = await client.readCoils(514, 1);  //readCoils 514,1 = premier AU
-      console.log("Z4 coils values:", dataZ4Coils.data);
-      const dataZ4HoldingRegister = await client.readHoldingRegisters(400, 10); // Registre ex 0;10
-      console.log("Z4 Register values:", dataZ4HoldingRegister.data);
-      const dataZ3Coils = await client.readCoils(516, 1); // Registre ex 0;10
- 
- 
-      //Ecriture Dcy
-      //const dataZ4Coils = await client.writeCoil(658, 0, 1);
-      //const WriteZ4Coils = await client.readCoils(658, 1);  //readCoils 514,1 = premier AU
-      //console.log("Z4 coils values:", WriteZ4Coils.data);
- 
-        //console.log("Z3 coils values:", dataZ3Coils.data);
-    } catch (err) {
-        console.error("Error reading :", err.message);
-    }
-}, 1000);
+const mysql = require("mysql2/promise");
 
- 
+// Configuration de la connexion à la base de données
+const pool = mysql.createPool({
+    host: "db",
+    user: "root",
+    password: "root",
+    database: "automate",
+    waitForConnections: true,
+    connectionLimit: 10,
+    //queueLimit: 0,
+});
+
+// Création du client Modbus
+const client = new ModbusRTU();
+
+// Fonction principale pour lire les valeurs des automates
+async function readPLCData() {
+    let connection;
+    try {
+        // Connexion au PLC (par exemple, via TCP sur une adresse IP spécifique)
+        await client.connectTCP("172.16.1.23", { port: 502 });
+        console.log("Connexion au PLC réussie");
+
+        // Connexion à la base de données
+        connection = await pool.getConnection();
+        console.log("Connexion au  réussie");
+
+        // Récupérer les variables dynamiques depuis la base de données
+        const [variables] = await connection.query("SELECT * FROM variables");
+
+        // Lire chaque variable en fonction de son type (Coils ou Holding Register)
+        for (const variable of variables) {
+            let value;
+            try {
+                if (variable.type === "Coils") {
+                    // Lecture d'une variable de type Coil
+                    const data = await client.readCoils(variable.enregistrement_modbus, 1);
+                    value = data.data[0] ? 1 : 0;
+                } else if (variable.type === "HoldingRegisters") {
+                    // Lecture d'une variable de type Holding Register
+                    const data = await client.readHoldingRegisters(variable.enregistrement_modbus, 1);
+                    value = data.data[0];
+                } else {
+                    console.warn(`Type de variable inconnu: ${variable.type}`);
+                    continue;
+                }
+
+                // Mise à jour de la valeur de la variable dans la base de données
+                await connection.query(
+                    "UPDATE variables SET valeur = ? WHERE id_variable = ?",
+                    [value, variable.id_variable]
+                );
+                console.log(`Variable ${variable.nom_variable} mise à jour avec la valeur ${value}`);
+            } catch (err) {
+                console.error(`Erreur lors de la lecture de la variable ${variable.nom_variable}:`, err);
+            }
+        }
+    } catch (error) {
+        console.error("Erreur générale :", error);
+    } finally {
+        if (connection) connection.release();
+        client.close();
+    }
+}
+
+// Exécuter la fonction toutes les 5 secondes
+setInterval(readPLCData, 5000);
+
 /* NodeS7
 //Version Node7
 var nodes7 = require('nodes7'); // This is the package name, if the repository is cloned you may need to require 'nodeS7' with uppercase S

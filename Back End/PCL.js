@@ -26,41 +26,36 @@ async function connectPLCZ3() {
     }
 }
 
-// Vérifiez la connexion à la base de données dès le démarrage
-async function testDatabaseConnection() {
+// Fonction pour lire toutes les variables de type "Coils" dans la base de données et les lire sur le PLC Z3
+async function readAllCoilsFromPLCZ3() {
     let connection;
     try {
         connection = await pool.getConnection();
-        console.log("Connexion à la base de données réussie !");
-    } catch (err) {
-        console.error("Erreur lors de la connexion à la base de données :", err.message);
-    } finally {
-        if (connection) connection.release();
-    }
-}
+        const [variables] = await connection.query("SELECT * FROM variables WHERE zone = 'Zone 3' AND type = 'Coils'");
 
-testDatabaseConnection();
-
-// Fonction pour lire la valeur de l'arrêt d'urgence sur le PLC Z3
-async function readArretUrgenceFromPLCZ3() {
-    try {
-        const [rows] = await pool.query("SELECT enregistrement_modbus FROM variables WHERE nom_variable LIKE '%Arret dUrgence%' AND zone = 'Zone 3'");
-        
-        if (rows.length > 0) {
-            const register = rows[0].enregistrement_modbus;
-            const data = await clientZ3.readCoils(register, 1); // Utiliser le registre récupéré depuis la BDD
-            const value = data.data[0]; // Récupérer uniquement la première valeur (true ou false)
-            console.log(`Valeur de l'arrêt d'urgence (registre ${register}) : ${value}`);
+        if (variables.length > 0) {
+            for (const variable of variables) {
+                try {
+                    // Lire le registre spécifique du PLC Z3
+                    const data = await clientZ3.readCoils(variable.enregistrement_modbus, 1);
+                    const value = data.data[0]; // Récupérer la première valeur (true ou false)
+                    console.log(`Valeur de la variable "${variable.nom_variable}" (registre ${variable.enregistrement_modbus}) : ${value}`);
+                } catch (plcError) {
+                    console.error(`Erreur lors de la lecture de la variable ${variable.nom_variable} :`, plcError.message);
+                }
+            }
         } else {
-            console.log("Aucun enregistrement trouvé pour l'arrêt d'urgence dans la base de données.");
+            console.log("Aucune variable de type 'Coils' trouvée pour la Zone 3 dans la base de données.");
         }
     } catch (error) {
-        console.error("Erreur lors de la récupération du numéro de registre de l'arrêt d'urgence :", error.message);
+        console.error("Erreur lors de la récupération des variables de type 'Coils' depuis la BDD :", error.message);
+    } finally {
+        if (connection) connection.release();
     }
 }
 
 // Connexion initiale au PLC de la Zone 3
 connectPLCZ3();
 
-// Lire la valeur de l'arrêt d'urgence toutes les 10 secondes
-setInterval(readArretUrgenceFromPLCZ3, 10000);
+// Lire toutes les variables de type "Coils" toutes les 10 secondes
+setInterval(readAllCoilsFromPLCZ3, 10000);

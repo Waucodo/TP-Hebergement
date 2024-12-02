@@ -2,18 +2,18 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const path = require('path');  // Pour gérer les chemins de fichiers
+const path = require('path');  // Pour gerer les chemins de fichiers
 
 const app = express();
 const PORT = 3000;
 
 // Middleware pour servir le dossier frontend comme des fichiers statiques
-app.use(express.static(path.join(__dirname, 'frontend')));  // Notez que j'ai supprimé `../` pour pointer vers 'frontend' dans le même dossier que le script
+app.use(express.static(path.join(__dirname, 'frontend')));
 
 app.use(cors());
 app.use(bodyParser.json());
 
-// Configuration de la base de données
+// Configuration de la base de donnees
 const pool = mysql.createPool({
     host: 'db',  // Le nom du service Docker pour MariaDB
     user: 'root',
@@ -77,12 +77,12 @@ app.post('/login', async (req, res) => {
 
 // Route pour retourner la page de connexion (Log.html)
 app.get('/login', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend', 'Log.html'));  // Correction du chemin pour qu'il soit en accord avec votre environnement
+  res.sendFile(path.join(__dirname, 'frontend', 'Log.html'));
 });
 
 // Route pour retourner la page principale (index.html) apres connexion reussie
 app.get('/index', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend', 'index.html'));  // Correction du chemin
+  res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
 
 // Route pour recuperer les informations des automates (zones et adresses IP)
@@ -94,6 +94,27 @@ app.get('/api/automates', async (req, res) => {
         res.status(200).json(rows);
     } catch (error) {
         console.error('Erreur lors de la recuperation des automates :', error);
+        res.status(500).send('Erreur serveur');
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// Route pour recuperer les variables d'une zone specifique
+app.get('/api/variables', async (req, res) => {
+    const { zone } = req.query;
+
+    if (!zone) {
+        return res.status(400).json({ error: 'Zone est requise.' });
+    }
+
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        const [rows] = await connection.query('SELECT * FROM variables WHERE zone = ?', [zone]);
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error('Erreur lors de la recuperation des variables :', error);
         res.status(500).send('Erreur serveur');
     } finally {
         if (connection) connection.release();

@@ -140,7 +140,7 @@
             <img src="Viewer.png" alt="Profile Image" class="profile-image" id="profileImage">
             <div class="menu" id="contextMenu">
                 <span id="userRole">Utilisateur : Viewer</span>
-                <button onclick="logout()">Se déconnecter</button>
+                <button onclick="logout()">Se deconnecter</button>
             </div>
         </div>
     </div>
@@ -158,14 +158,14 @@
                 <tr>
                     <th>Nom de la Variable</th>
                     <th>Adresse IP</th>
-                    <th>Unité</th>
+                    <th>Unite</th>
                     <th>Seuil Min</th>
                     <th>Seuil Max</th>
                     <th>Valeur Actuelle</th>
                 </tr>
             </thead>
             <tbody>
-                <!-- Les variables de Zone 3 seront ajoutées ici dynamiquement -->
+                <!-- Les variables de Zone 3 seront ajoutees ici dynamiquement -->
             </tbody>
         </table>
     </div>
@@ -174,7 +174,7 @@
     <div class="alarms-bandeau">
         <h5>Alarmes Actives :</h5>
         <ul id="alarms-list" style="list-style: none; padding: 0;">
-            <!-- Les alarmes seront ajoutées ici dynamiquement -->
+            <!-- Les alarmes seront ajoutees ici dynamiquement -->
         </ul>
     </div>
 
@@ -215,11 +215,11 @@
                             <td>${variable.unite}</td>
                             <td>${variable.seuil_alerte_min}</td>
                             <td>${variable.seuil_alerte_max}</td>
-                            <td>${variable.valeur ? variable.valeur : 'N/A'}</td>
+                            <td>${variable.valeur != null ? variable.valeur : 'N/A'}</td>
                         `;
 
-                        // Ajouter les alarmes au bandeau si nécessaire
-                        if ((variable.nom_variable.toLowerCase().includes('défaut') || variable.nom_variable.toLowerCase().includes('sécurité') || variable.nom_variable.toLowerCase().includes('urgence')) && variable.valeur === 0) {
+                        // Ajouter les alarmes au bandeau si necessaire
+                        if ((variable.nom_variable.toLowerCase().includes('defaut') || variable.nom_variable.toLowerCase().includes('securite') || variable.nom_variable.toLowerCase().includes('urgence')) && variable.valeur === 0) {
                             const alarmsList = document.getElementById('alarms-list');
                             const li = document.createElement('li');
                             li.textContent = variable.nom_variable;

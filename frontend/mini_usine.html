@@ -33,27 +33,24 @@
             font-size: 1.5rem;
         }
         .btn-back {
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: linear-gradient(135deg, #3498db, #2ecc71);
-    border: none;
-    color: white;
-    padding: 5px 15px;
-    border-radius: 20px;
-    font-size: 0.9rem;
-    cursor: pointer;
-    font-weight: bold;
-    transition: transform 0.2s, box-shadow 0.2s;
-            }
-
-            .btn-back:hover {
-    transform: translateY(-50%) scale(1.05); /* Conserve la position verticale tout en augmentant la taille */
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-                    }
-
-        
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: linear-gradient(135deg, #3498db, #2ecc71);
+            border: none;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-back:hover {
+            transform: translateY(-50%) scale(1.05);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
         .context-menu {
             position: absolute;
             top: 50%;
@@ -157,9 +154,9 @@
         <button class="btn-back" onclick="goToIndex()">Retour aux Armoires Électriques</button>
         Mini Usine 4.0
         <div class="context-menu">
-            <img src="Admin.png" alt="Profile Image" class="profile-image" id="profileImage">
+            <img src="Viewer.png" alt="Profile Image" class="profile-image" id="profileImage">
             <div class="menu" id="contextMenu">
-                <span id="userRole">Utilisateur : Admin</span>
+                <span id="userRole">Utilisateur : Viewer</span>
                 <button onclick="logout()">Se déconnecter</button>
             </div>
         </div>
@@ -229,26 +226,33 @@
     <script>
         const contextMenu = document.getElementById('contextMenu');
         const profileImage = document.getElementById('profileImage');
+        const userRole = document.getElementById('userRole');
 
-        // Récupérer l'utilisateur depuis localStorage
-        const currentUser = JSON.parse(localStorage.getItem('currentUser'));
-
-        if (currentUser) {
-            const userRole = document.getElementById('userRole');
-            if (currentUser.role === 'admin') {
-                userRole.textContent = 'Utilisateur : Admin';
-                profileImage.src = 'Admin.png';
-            } else if (currentUser.role === 'operator') {
-                userRole.textContent = 'Utilisateur : Technicien';
-                profileImage.src = 'Tech.png';
-            } else {
-                userRole.textContent = 'Utilisateur : Viewer';
-                profileImage.src = 'Viewer.png';
-            }
-        } else {
-            alert('Veuillez vous connecter.');
-            window.location.href = 'Log.html';
+        // Charger les informations de l'utilisateur connecté depuis le backend
+        function loadCurrentUser() {
+            fetch('http://localhost:3000/api/current-user')
+                .then(response => response.json())
+                .then(user => {
+                    if (user.role === 'admin') {
+                        userRole.textContent = 'Utilisateur : Admin';
+                        profileImage.src = 'Admin.png';
+                    } else if (user.role === 'operator') {
+                        userRole.textContent = 'Utilisateur : Technicien';
+                        profileImage.src = 'Tech.png';
+                    } else {
+                        userRole.textContent = 'Utilisateur : Viewer';
+                        profileImage.src = 'Viewer.png';
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur lors de la récupération des informations de l\'utilisateur:', error);
+                    alert('Erreur lors de la récupération des informations de l\'utilisateur. Veuillez vous reconnecter.');
+                    window.location.href = 'Log.html';
+                });
         }
+
+        // Appeler la fonction pour charger les informations de l'utilisateur
+        loadCurrentUser();
 
         profileImage.addEventListener('click', () => {
             contextMenu.style.display = contextMenu.style.display === 'block' ? 'none' : 'block';
@@ -261,8 +265,17 @@
         });
 
         function logout() {
-            localStorage.removeItem('currentUser');
-            window.location.href = 'Log.html';
+            // Déconnexion de l'utilisateur
+            fetch('http://localhost:3000/api/logout', {
+                method: 'POST',
+                credentials: 'include'
+            })
+            .then(() => {
+                window.location.href = 'Log.html';
+            })
+            .catch(error => {
+                console.error('Erreur lors de la déconnexion:', error);
+            });
         }
 
         function goToIndex() {

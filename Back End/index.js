@@ -2,7 +2,7 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const path = require('path');  // Pour gerer les chemins de fichiers
+const path = require('path');
 
 const app = express();
 const PORT = 3000;
@@ -13,9 +13,9 @@ app.use(express.static(path.join(__dirname, 'frontend')));
 app.use(cors());
 app.use(bodyParser.json());
 
-// Configuration de la base de donnees
+// Configuration de la base de données
 const pool = mysql.createPool({
-    host: 'db',  // Le nom du service Docker pour MariaDB
+    host: 'db', // Le nom du service Docker pour MariaDB
     user: 'root',
     password: 'root',
     database: 'automate',
@@ -24,12 +24,19 @@ const pool = mysql.createPool({
     queueLimit: 0,
 });
 
+// Simuler un utilisateur connecté (à remplacer par une gestion des sessions)
+let currentUser = {
+    id_operateur: 1,
+    nom_operateur: 'admin',
+    role: 'admin'
+};
+
 // Route principale (sanity check)
 app.get('/', (req, res) => {
-    res.send('API operationnelle 🚀');
+    res.send('API opérationnelle 🚀');
 });
 
-// Route pour recuperer des operateurs
+// Route pour récupérer des opérateurs
 app.get('/api/operateurs', async (req, res) => {
     let connection;
     try {
@@ -62,8 +69,8 @@ app.post('/login', async (req, res) => {
         );
 
         if (rows.length > 0) {
-            const user = rows[0];
-            res.status(200).json({ id: user.id_operateur, username: user.nom_operateur, role: user.role });
+            currentUser = rows[0]; // Met à jour l'utilisateur connecté
+            res.status(200).json({ id: currentUser.id_operateur, username: currentUser.nom_operateur, role: currentUser.role });
         } else {
             res.status(401).json({ error: 'Nom d\'utilisateur ou mot de passe incorrect.' });
         }
@@ -77,15 +84,15 @@ app.post('/login', async (req, res) => {
 
 // Route pour retourner la page de connexion (Log.html)
 app.get('/login', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend', 'Log.html'));
+    res.sendFile(path.join(__dirname, 'frontend', 'Log.html'));
 });
 
-// Route pour retourner la page principale (index.html) apres connexion reussie
+// Route pour retourner la page principale (index.html) après connexion réussie
 app.get('/index', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
+    res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
 
-// Route pour recuperer les informations des automates (zones et adresses IP)
+// Route pour récupérer les informations des automates (zones et adresses IP)
 app.get('/api/automates', async (req, res) => {
     let connection;
     try {
@@ -93,19 +100,19 @@ app.get('/api/automates', async (req, res) => {
         const [rows] = await connection.query('SELECT * FROM automates');
         res.status(200).json(rows);
     } catch (error) {
-        console.error('Erreur lors de la recuperation des automates :', error);
+        console.error('Erreur lors de la récupération des automates :', error);
         res.status(500).send('Erreur serveur');
     } finally {
         if (connection) connection.release();
     }
 });
 
-// Route pour recuperer les variables d'une zone specifique
+// Route pour récupérer les variables par zone
 app.get('/api/variables', async (req, res) => {
-    const { zone } = req.query;
+    const zone = req.query.zone;
 
     if (!zone) {
-        return res.status(400).json({ error: 'Zone est requise.' });
+        return res.status(400).json({ error: 'La zone est requise.' });
     }
 
     let connection;
@@ -114,18 +121,27 @@ app.get('/api/variables', async (req, res) => {
         const [rows] = await connection.query('SELECT * FROM variables WHERE zone = ?', [zone]);
         res.status(200).json(rows);
     } catch (error) {
-        console.error('Erreur lors de la recuperation des variables :', error);
+        console.error('Erreur lors de la récupération des variables :', error);
         res.status(500).send('Erreur serveur');
     } finally {
         if (connection) connection.release();
     }
 });
 
-// Route pour mettre a jour l'adresse IP d'un automate pour une zone specifique
+// Route pour obtenir l'utilisateur connecté
+app.get('/api/current-user', (req, res) => {
+    // En situation réelle, cela devrait vérifier une session ou un token
+    if (currentUser) {
+        res.status(200).json(currentUser);
+    } else {
+        res.status(401).json({ error: 'Utilisateur non connecté.' });
+    }
+});
+
+// Route pour mettre à jour l'adresse IP d'un automate pour une zone spécifique
 app.put('/api/automates/update-ip', async (req, res) => {
     const { zone, ipAddress, modifiedBy } = req.body;
 
-    // Verification que la zone et l'adresse IP sont bien definies
     if (!zone || !ipAddress || !modifiedBy) {
         return res.status(400).json({ error: 'Zone, adresse IP, et utilisateur sont requis.' });
     }
@@ -134,7 +150,6 @@ app.put('/api/automates/update-ip', async (req, res) => {
     try {
         connection = await pool.getConnection();
 
-        // Recuperer l'ancienne adresse IP avant de la mettre a jour
         const [oldData] = await connection.query('SELECT * FROM automates WHERE zone = ?', [zone]);
 
         if (oldData.length === 0) {
@@ -143,12 +158,10 @@ app.put('/api/automates/update-ip', async (req, res) => {
 
         const ancienneIp = oldData[0].adresse_ip;
 
-        // Mise a jour de l'adresse IP dans la base de donnees pour la zone donnee
         const updateQuery = 'UPDATE automates SET adresse_ip = ? WHERE zone = ?';
         const [result] = await connection.query(updateQuery, [ipAddress, zone]);
 
         if (result.affectedRows > 0) {
-            // Enregistrement de la modification dans historique_automates
             const historiqueQuery = `
                 INSERT INTO historique_automates (id_automate, zone, ancienne_ip, nouvelle_ip, modifie_par)
                 VALUES (?, ?, ?, ?, ?)
@@ -161,13 +174,13 @@ app.put('/api/automates/update-ip', async (req, res) => {
                 modifiedBy
             ]);
 
-            res.status(200).json({ message: `L'adresse IP de ${zone} a ete mise a jour a ${ipAddress}.` });
+            res.status(200).json({ message: `L'adresse IP de ${zone} a été mise à jour à ${ipAddress}.` });
         } else {
             res.status(404).json({ error: `Zone ${zone} introuvable.` });
         }
     } catch (error) {
-        console.error('Erreur lors de la mise a jour de l\'adresse IP :', error);
-        res.status(500).json({ error: 'Erreur serveur lors de la mise a jour.' });
+        console.error('Erreur lors de la mise à jour de l\'adresse IP :', error);
+        res.status(500).json({ error: 'Erreur serveur lors de la mise à jour.' });
     } finally {
         if (connection) connection.release();
     }
@@ -175,5 +188,5 @@ app.put('/api/automates/update-ip', async (req, res) => {
 
 // Lancement du serveur
 app.listen(PORT, () => {
-    console.log(`Serveur backend en cours d'execution sur http://localhost:${PORT}`);
+    console.log(`Serveur backend en cours d'exécution sur http://localhost:${PORT}`);
 });

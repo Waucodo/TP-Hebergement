@@ -140,7 +140,7 @@
             <img src="Viewer.png" alt="Profile Image" class="profile-image" id="profileImage">
             <div class="menu" id="contextMenu">
                 <span id="userRole">Utilisateur : Viewer</span>
-                <button onclick="logout()">Se deconnecter</button>
+                <button onclick="logout()">Se déconnecter</button>
             </div>
         </div>
     </div>
@@ -158,14 +158,14 @@
                 <tr>
                     <th>Nom de la Variable</th>
                     <th>Adresse IP</th>
-                    <th>Unite</th>
+                    <th>Unité</th>
                     <th>Seuil Min</th>
                     <th>Seuil Max</th>
                     <th>Valeur Actuelle</th>
                 </tr>
             </thead>
             <tbody>
-                <!-- Les variables de Zone 3 seront ajoutees ici dynamiquement -->
+                <!-- Les variables de Zone 3 seront ajoutées ici dynamiquement -->
             </tbody>
         </table>
     </div>
@@ -174,7 +174,7 @@
     <div class="alarms-bandeau">
         <h5>Alarmes Actives :</h5>
         <ul id="alarms-list" style="list-style: none; padding: 0;">
-            <!-- Les alarmes seront ajoutees ici dynamiquement -->
+            <!-- Les alarmes seront ajoutées ici dynamiquement -->
         </ul>
     </div>
 
@@ -194,46 +194,93 @@
         });
 
         function logout() {
-            localStorage.removeItem('currentUser');
-            window.location.href = 'Log.html';
+            // Requête pour déconnecter l'utilisateur
+            fetch('http://localhost:3000/logout', {
+                method: 'POST',
+                credentials: 'include'
+            }).then(() => {
+                window.location.href = 'Log.html';
+            });
+        }
+
+        // Charger les informations de l'utilisateur connecté
+        function loadCurrentUser() {
+            fetch('http://localhost:3000/api/current-user', {
+                method: 'GET',
+                credentials: 'include'  // Inclure les cookies pour obtenir la session
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    // Rediriger vers la page de connexion si l'utilisateur n'est pas connecté
+                    window.location.href = 'Log.html';
+                } else {
+                    return response.json();
+                }
+            })
+            .then(user => {
+                if (user) {
+                    const userRoleElement = document.getElementById('userRole');
+                    const menuIcon = document.querySelector('.profile-image');
+
+                    if (user.role === 'admin') {
+                        userRoleElement.textContent = 'Utilisateur : Admin';
+                        menuIcon.src = 'Admin.png';
+                    } else if (user.role === 'operator') {
+                        userRoleElement.textContent = 'Utilisateur : Technicien';
+                        menuIcon.src = 'Tech.png';
+                    } else {
+                        userRoleElement.textContent = 'Utilisateur : Viewer';
+                        menuIcon.src = 'Viewer.png';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Erreur lors de la récupération des informations de l\'utilisateur:', error);
+            });
         }
 
         // Charger les variables de la Zone 3 depuis le backend
         function loadZone3Variables() {
-            fetch('http://localhost:3000/api/variables?zone=Zone 3')
-                .then(response => response.json())
-                .then(data => {
-                    const variablesTable = document.getElementById('variablesTable').getElementsByTagName('tbody')[0];
-                    variablesTable.innerHTML = '';
+            fetch('http://localhost:3000/api/variables?zone=Zone 3', {
+                method: 'GET',
+                credentials: 'include'  // Inclure les cookies pour les sessions
+            })
+            .then(response => response.json())
+            .then(data => {
+                const variablesTable = document.getElementById('variablesTable').getElementsByTagName('tbody')[0];
+                variablesTable.innerHTML = '';
 
-                    data.forEach(variable => {
-                        const row = variablesTable.insertRow();
+                data.forEach(variable => {
+                    const row = variablesTable.insertRow();
 
-                        row.innerHTML = `
-                            <td>${variable.nom_variable}</td>
-                            <td>${variable.adresse_ip}</td>
-                            <td>${variable.unite}</td>
-                            <td>${variable.seuil_alerte_min}</td>
-                            <td>${variable.seuil_alerte_max}</td>
-                            <td>${variable.valeur != null ? variable.valeur : 'N/A'}</td>
-                        `;
+                    row.innerHTML = `
+                        <td>${variable.nom_variable}</td>
+                        <td>${variable.adresse_ip}</td>
+                        <td>${variable.unite}</td>
+                        <td>${variable.seuil_alerte_min}</td>
+                        <td>${variable.seuil_alerte_max}</td>
+                        <td>${variable.valeur ? variable.valeur : 'N/A'}</td>
+                    `;
 
-                        // Ajouter les alarmes au bandeau si necessaire
-                        if ((variable.nom_variable.toLowerCase().includes('defaut') || variable.nom_variable.toLowerCase().includes('securite') || variable.nom_variable.toLowerCase().includes('urgence')) && variable.valeur === 0) {
-                            const alarmsList = document.getElementById('alarms-list');
-                            const li = document.createElement('li');
-                            li.textContent = variable.nom_variable;
-                            alarmsList.appendChild(li);
-                        }
-                    });
-                })
-                .catch(error => {
-                    console.error('Erreur lors du chargement des variables de la Zone 3:', error);
+                    // Ajouter les alarmes au bandeau si nécessaire
+                    if ((variable.nom_variable.toLowerCase().includes('defaut') || variable.nom_variable.toLowerCase().includes('securite') || variable.nom_variable.toLowerCase().includes('urgence')) && variable.valeur === 0) {
+                        const alarmsList = document.getElementById('alarms-list');
+                        const li = document.createElement('li');
+                        li.textContent = variable.nom_variable;
+                        alarmsList.appendChild(li);
+                    }
                 });
+            })
+            .catch(error => {
+                console.error('Erreur lors du chargement des variables de la Zone 3:', error);
+            });
         }
 
-        // Charger les variables de Zone 3 au chargement de la page
-        window.onload = loadZone3Variables;
+        // Charger les informations de l'utilisateur connecté et les variables de Zone 3 au chargement de la page
+        window.onload = () => {
+            loadCurrentUser();
+            loadZone3Variables();
+        };
     </script>
 </body>
 </html>

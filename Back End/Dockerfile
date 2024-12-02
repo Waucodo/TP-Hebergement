@@ -18,20 +18,14 @@ RUN apk add --no-cache bash mysql-client
 # Copier les fichiers package.json et package-lock.json pour installer les dépendances
 COPY package*.json ./
 
-# Copier le script PCL.js
-COPY PCL.js .
-
-# Assurez-vous que les dépendances modbus-serial et mysql2 sont installées
-RUN npm install modbus-serial mysql2
-
-# Installer les dépendances de production uniquement
-RUN npm install --production
-
-# Exposer le port 3000 (pour correspondre à ce qui est défini dans docker-compose.yml)
-EXPOSE 3000
+# Installer toutes les dépendances
+RUN npm install
 
 # Copier tous les fichiers restants dans le conteneur
 COPY . .
+
+# Exposer le port 3000 (pour correspondre à ce qui est défini dans docker-compose.yml)
+EXPOSE 3000
 
 # Changer d'utilisateur pour "node" pour plus de sécurité
 USER node

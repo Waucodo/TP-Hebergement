@@ -12,8 +12,17 @@ ENV NODE_ENV production
 # Définir le répertoire de travail dans le conteneur
 WORKDIR /usr/src/app
 
+# Installer bash et mysql-client
+RUN apk add --no-cache bash mysql-client
+
 # Copier les fichiers package.json et package-lock.json pour installer les dépendances
 COPY package*.json ./
+
+# Copier le script PCL.js
+COPY PCL.js .
+
+# Assurez-vous que les dépendances modbus-serial et mysql2 sont installées
+RUN npm install modbus-serial mysql2
 
 # Installer les dépendances de production uniquement
 RUN npm install --production

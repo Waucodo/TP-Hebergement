@@ -24,72 +24,9 @@ const pool = mysql.createPool({
     queueLimit: 0,
 });
 
-// Simuler un utilisateur connecté (à remplacer par une gestion des sessions)
-let currentUser = {
-    id_operateur: 1,
-    nom_operateur: 'admin',
-    role: 'admin'
-};
-
 // Route principale (sanity check)
 app.get('/', (req, res) => {
     res.send('API opérationnelle 🚀');
-});
-
-// Route pour récupérer des opérateurs
-app.get('/api/operateurs', async (req, res) => {
-    let connection;
-    try {
-        connection = await pool.getConnection();
-        const [rows] = await connection.query('SELECT * FROM operateurs');
-        res.status(200).json(rows);
-    } catch (error) {
-        console.error(error);
-        res.status(500).send('Erreur serveur');
-    } finally {
-        if (connection) connection.release();
-    }
-});
-
-// Route de connexion
-app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-        return res.status(400).json({ error: 'Nom d\'utilisateur et mot de passe requis.' });
-    }
-
-    let connection;
-    try {
-        connection = await pool.getConnection();
-
-        const [rows] = await connection.query(
-            'SELECT * FROM operateurs WHERE nom_operateur = ? AND password = ?',
-            [username, password]
-        );
-
-        if (rows.length > 0) {
-            currentUser = rows[0]; // Met à jour l'utilisateur connecté
-            res.status(200).json({ id: currentUser.id_operateur, username: currentUser.nom_operateur, role: currentUser.role });
-        } else {
-            res.status(401).json({ error: 'Nom d\'utilisateur ou mot de passe incorrect.' });
-        }
-    } catch (error) {
-        console.error('Erreur lors de la connexion :', error);
-        res.status(500).json({ error: 'Erreur serveur' });
-    } finally {
-        if (connection) connection.release();
-    }
-});
-
-// Route pour retourner la page de connexion (Log.html)
-app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend', 'Log.html'));
-});
-
-// Route pour retourner la page principale (index.html) après connexion réussie
-app.get('/index', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
 
 // Route pour récupérer les informations des automates (zones et adresses IP)
@@ -122,9 +59,13 @@ app.get('/api/variables', async (req, res) => {
             SELECT v.*, hv.valeur AS valeur_actuelle
             FROM variables v
             LEFT JOIN (
-                SELECT id_variable, valeur, MAX(horodatage) AS horodatage
+                SELECT id_variable, valeur, horodatage
                 FROM historique_variables
-                GROUP BY id_variable
+                WHERE (id_variable, horodatage) IN (
+                    SELECT id_variable, MAX(horodatage) 
+                    FROM historique_variables 
+                    GROUP BY id_variable
+                )
             ) hv ON v.id_variable = hv.id_variable
             WHERE v.zone = ?
         `, [zone]);
@@ -186,59 +127,22 @@ app.delete('/api/variables/:id_variable', async (req, res) => {
     }
 });
 
-// Route pour obtenir l'utilisateur connecté
-app.get('/api/current-user', (req, res) => {
-    // En situation réelle, cela devrait vérifier une session ou un token
-    if (currentUser) {
-        res.status(200).json(currentUser);
-    } else {
-        res.status(401).json({ error: 'Utilisateur non connecté.' });
-    }
-});
-
-// Route pour mettre à jour l'adresse IP d'un automate pour une zone spécifique
-app.put('/api/automates/update-ip', async (req, res) => {
-    const { zone, ipAddress, modifiedBy } = req.body;
-
-    if (!zone || !ipAddress || !modifiedBy) {
-        return res.status(400).json({ error: 'Zone, adresse IP, et utilisateur sont requis.' });
-    }
+// Route pour récupérer l'historique d'une variable
+app.get('/api/variables/:id_variable/historique', async (req, res) => {
+    const { id_variable } = req.params;
 
     let connection;
     try {
         connection = await pool.getConnection();
+        const [rows] = await connection.query(
+            'SELECT * FROM historique_variables WHERE id_variable = ? ORDER BY horodatage DESC',
+            [id_variable]
+        );
 
-        const [oldData] = await connection.query('SELECT * FROM automates WHERE zone = ?', [zone]);
-
-        if (oldData.length === 0) {
-            return res.status(404).json({ error: `Zone ${zone} introuvable.` });
-        }
-
-        const ancienneIp = oldData[0].adresse_ip;
-
-        const updateQuery = 'UPDATE automates SET adresse_ip = ? WHERE zone = ?';
-        const [result] = await connection.query(updateQuery, [ipAddress, zone]);
-
-        if (result.affectedRows > 0) {
-            const historiqueQuery = `
-                INSERT INTO historique_automates (id_automate, zone, ancienne_ip, nouvelle_ip, modifie_par)
-                VALUES (?, ?, ?, ?, ?)
-            `;
-            await connection.query(historiqueQuery, [
-                oldData[0].id_automate,
-                zone,
-                ancienneIp,
-                ipAddress,
-                modifiedBy
-            ]);
-
-            res.status(200).json({ message: `L'adresse IP de ${zone} a été mise à jour à ${ipAddress}.` });
-        } else {
-            res.status(404).json({ error: `Zone ${zone} introuvable.` });
-        }
+        res.status(200).json(rows);
     } catch (error) {
-        console.error('Erreur lors de la mise à jour de l\'adresse IP :', error);
-        res.status(500).json({ error: 'Erreur serveur lors de la mise à jour.' });
+        console.error('Erreur lors de la récupération de l\'historique de la variable :', error);
+        res.status(500).send('Erreur serveur');
     } finally {
         if (connection) connection.release();
     }

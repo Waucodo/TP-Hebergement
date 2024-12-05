@@ -171,7 +171,7 @@
 
     <!-- Tableau de l'historique des variables -->
     <div class="historique-table-container">
-        <h3>Historique de la Variable Sélectionnée</h3>
+        <h3>Historique de la Variable Sélectionnée: <span id="variableNameTitle"></span></h3>
         <button class="export-btn btn btn-primary" onclick="exportCSV()">Exporter en CSV</button>
         <table id="historiqueTable">
             <thead>
@@ -199,6 +199,7 @@
     <script>
         let variableHistory = [];
         let chart; // Chart.js instance
+        let currentVariableName = ""; // Stocker le nom de la variable sélectionnée
 
         // Charger les variables de la Zone 3 depuis le backend
         function loadZone3Variables() {
@@ -216,9 +217,9 @@
                             <td>${variable.unite}</td>
                             <td>${variable.seuil_alerte_min}</td>
                             <td>${variable.seuil_alerte_max}</td>
-                            <td>${variable.valeur !== undefined ? variable.valeur : 'N/A'}</td>
+                            <td>${(variable.valeur_actuelle !== null && variable.valeur_actuelle !== undefined) ? variable.valeur_actuelle : 'N/A'}</td>
                             <td>${variable.enregistrement_modbus}</td>
-                            <td><button class="btn btn-info btn-sm" onclick="loadVariableHistory(${variable.id_variable})">Voir Historique</button></td>
+                            <td><button class="btn btn-info btn-sm" onclick="loadVariableHistory(${variable.id_variable}, '${variable.nom_variable}')">Voir Historique</button></td>
                             <td><button class="btn btn-danger btn-sm" onclick="deleteVariable(${variable.id_variable})">Supprimer</button></td>
                         `;
                     });
@@ -236,9 +237,10 @@
             const seuil_min = document.getElementById('seuil_min').value;
             const seuil_max = document.getElementById('seuil_max').value;
             const enregistrement_modbus = document.getElementById('enregistrement_modbus').value;
-            const type = document.getElementById('type').value;
+            const type = document.getElementById('type').value; // Obtenir la valeur du select
             const zone = 'Zone 3';
 
+            // Vérifier si tous les champs sont remplis
             if (!nom_variable || !adresse_ip || !enregistrement_modbus || !zone || !type) {
                 alert('Veuillez remplir tous les champs requis.');
                 return;
@@ -264,13 +266,13 @@
             .then(data => {
                 if (data.message) {
                     alert(data.message);
-                    loadZone3Variables();
+                    loadZone3Variables(); // Recharger la liste des variables
                 } else {
                     alert(data.error);
                 }
             })
             .catch(error => {
-                console.error("Erreur lors de l'ajout de la variable :", error);
+                console.error('Erreur lors de l\'ajout de la variable :', error);
             });
         }
 
@@ -283,7 +285,7 @@
                 .then(response => {
                     if (response.ok) {
                         alert('Variable supprimée avec succès.');
-                        loadZone3Variables();
+                        loadZone3Variables(); // Recharger les variables après la suppression
                     } else {
                         console.error('Erreur lors de la suppression de la variable');
                         alert('Erreur lors de la suppression de la variable.');
@@ -297,7 +299,10 @@
         }
 
         // Charger l'historique d'une variable
-        function loadVariableHistory(id_variable) {
+        function loadVariableHistory(id_variable, nom_variable) {
+            currentVariableName = nom_variable;
+            document.getElementById('variableNameTitle').textContent = nom_variable;
+
             fetch(`http://localhost:3000/api/variables/${id_variable}/historique`)
                 .then(response => response.json())
                 .then(data => {
@@ -309,14 +314,14 @@
                         const row = historiqueTable.insertRow();
                         row.innerHTML = `
                             <td>${entry.horodatage}</td>
-                            <td>${entry.valeur}</td>
+                            <td>${(entry.valeur !== null && entry.valeur !== undefined) ? entry.valeur : 'N/A'}</td>
                         `;
                     });
 
                     updateChart();
                 })
                 .catch(error => {
-                    console.error("Erreur lors du chargement de l'historique de la variable:", error);
+                    console.error('Erreur lors du chargement de l\'historique de la variable:', error);
                 });
         }
 
@@ -335,7 +340,7 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Valeur de la variable au fil du temps',
+                        label: `Valeur de la variable "${currentVariableName}" au fil du temps`,
                         data: data,
                         fill: false,
                         borderColor: 'rgba(75, 192, 192, 1)',
@@ -360,8 +365,7 @@
 
         // Fonction pour exporter l'historique en CSV
         function exportCSV() {
-            let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Horodatage, Valeur\n";
+            let csvContent = `data:text/csv;charset=utf-8,Nom de la Variable: ${currentVariableName}\nHorodatage, Valeur\n`;
 
             variableHistory.forEach(entry => {
                 csvContent += `${entry.horodatage}, ${entry.valeur}\n`;
@@ -370,12 +374,12 @@
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "historique_variable.csv");
+            link.setAttribute("download", `historique_${currentVariableName}.csv`);
             document.body.appendChild(link);
             link.click();
         }
 
-        // Fonction pour exporter toutes les variables en CSV avec historique
+        // Fonction pour exporter toutes les variables en CSV
         function exportAllVariables() {
             fetch('http://localhost:3000/api/variables?zone=Zone 3')
                 .then(response => response.json())
@@ -385,26 +389,20 @@
 
                     for (const variable of variables) {
                         let historiqueText = "";
-
                         try {
                             const response = await fetch(`http://localhost:3000/api/variables/${variable.id_variable}/historique`);
                             const historique = await response.json();
-
                             historique.forEach(entry => {
                                 historiqueText += `${entry.horodatage}:${entry.valeur} | `;
                             });
-
                             if (historiqueText.endsWith(" | ")) {
                                 historiqueText = historiqueText.slice(0, -3);
                             }
-
                         } catch (error) {
                             console.error(`Erreur lors de la récupération de l'historique pour la variable ${variable.nom_variable}:`, error);
                         }
-
-                        csvContent += `${variable.nom_variable}, ${variable.adresse_ip}, ${variable.unite}, ${variable.seuil_alerte_min}, ${variable.seuil_alerte_max}, ${variable.valeur !== undefined ? variable.valeur : 'N/A'}, ${variable.enregistrement_modbus}, ${variable.type}, "${historiqueText}"\n`;
+                        csvContent += `${variable.nom_variable}, ${variable.adresse_ip}, ${variable.unite}, ${variable.seuil_alerte_min}, ${variable.seuil_alerte_max}, ${(variable.valeur_actuelle !== null && variable.valeur_actuelle !== undefined) ? variable.valeur_actuelle : 'N/A'}, ${variable.enregistrement_modbus}, ${variable.type}, "${historiqueText}"\n`;
                     }
-
                     const encodedUri = encodeURI(csvContent);
                     const link = document.createElement("a");
                     link.setAttribute("href", encodedUri);
@@ -413,15 +411,12 @@
                     link.click();
                 })
                 .catch(error => {
-                    console.error("Erreur lors de l'export des variables :", error);
+                    console.error('Erreur lors de l\'export des variables :', error);
                 });
         }
 
         // Charger les variables de Zone 3 au chargement de la page
         window.onload = loadZone3Variables;
-
-        // Ajouter l'actualisation automatique toutes les 10 secondes
-        setInterval(loadZone3Variables, 10000);
     </script>
 </body>
 

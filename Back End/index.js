@@ -15,7 +15,7 @@ app.use(bodyParser.json());
 
 // Configuration de la base de données
 const pool = mysql.createPool({
-    host: 'db', // Le nom du service Docker pour MariaDB
+    host: 'db',
     user: 'root',
     password: 'root',
     database: 'automate',
@@ -137,24 +137,21 @@ app.get('/api/variables', async (req, res) => {
     }
 });
 
-// Route pour récupérer l'historique d'une variable
+// Route pour récupérer l'historique d'une variable spécifique
 app.get('/api/variables/:id_variable/historique', async (req, res) => {
     const { id_variable } = req.params;
 
     let connection;
     try {
         connection = await pool.getConnection();
-        const [rows] = await connection.query(`
-            SELECT horodatage, valeur
-            FROM historique_variables
-            WHERE id_variable = ?
-            ORDER BY horodatage DESC
-            LIMIT 10
-        `, [id_variable]);
+        const [rows] = await connection.query(
+            'SELECT horodatage, valeur FROM historique_variables WHERE id_variable = ? ORDER BY horodatage ASC',
+            [id_variable]
+        );
         res.status(200).json(rows);
     } catch (error) {
         console.error('Erreur lors de la récupération de l\'historique :', error);
-        res.status(500).json({ error: 'Erreur serveur' });
+        res.status(500).send('Erreur serveur');
     } finally {
         if (connection) connection.release();
     }

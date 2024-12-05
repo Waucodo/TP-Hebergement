@@ -77,8 +77,62 @@ async function readAllCoilsFromPLCZ3() {
     }
 }
 
+// Fonction pour lire toutes les variables de type "HoldingRegisters" dans la base de données et les lire sur le PLC Z3
+async function readAllHoldingRegistersFromPLCZ3() {
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        const [variables] = await connection.query("SELECT * FROM variables WHERE zone = 'Zone 3' AND type = 'HoldingRegisters'");
+
+        if (variables.length > 0) {
+            for (const variable of variables) {
+                try {
+                    // Lire le registre spécifique du PLC Z3
+                    const data = await clientZ3.readHoldingRegisters(variable.enregistrement_modbus, 1);
+                    const currentValue = data.data[0];
+
+                    // Vérifier la dernière valeur enregistrée dans historique_variables
+                    const [lastRecorded] = await connection.query(
+                        "SELECT valeur FROM historique_variables WHERE id_variable = ? ORDER BY horodatage DESC LIMIT 1",
+                        [variable.id_variable]
+                    );
+
+                    const lastValue = lastRecorded.length > 0 ? lastRecorded[0].valeur : null;
+
+                    // Si la valeur a changé, l'archiver dans la base de données
+                    if (lastValue !== currentValue) {
+                        await connection.query(
+                            "INSERT INTO historique_variables (id_variable, valeur, horodatage) VALUES (?, ?, NOW())",
+                            [variable.id_variable, currentValue]
+                        );
+
+                        // Mettre à jour la valeur actuelle de la variable dans la table variables
+                        await connection.query(
+                            "UPDATE variables SET valeur = ? WHERE id_variable = ?",
+                            [currentValue, variable.id_variable]
+                        );
+
+                        console.log(`Valeur modifiée de "${variable.nom_variable}" (registre ${variable.enregistrement_modbus}) : ${currentValue}`);
+                    }
+                } catch (plcError) {
+                    console.error(`Erreur lors de la lecture de la variable ${variable.nom_variable} :`, plcError.message);
+                }
+            }
+        } else {
+            console.log("Aucune variable de type 'HoldingRegisters' trouvée pour la Zone 3 dans la base de données.");
+        }
+    } catch (error) {
+        console.error("Erreur lors de la récupération des variables de type 'HoldingRegisters' depuis la BDD :", error.message);
+    } finally {
+        if (connection) connection.release();
+    }
+}
+
 // Connexion initiale au PLC de la Zone 3
 connectPLCZ3();
 
 // Lire toutes les variables de type "Coils" toutes les 10 secondes
 setInterval(readAllCoilsFromPLCZ3, 10000);
+
+// Lire toutes les variables de type "HoldingRegisters" toutes les 10 secondes
+setInterval(readAllHoldingRegistersFromPLCZ3, 10000);

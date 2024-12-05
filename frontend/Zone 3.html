@@ -70,20 +70,6 @@
             margin: 0;
         }
 
-        .btn-return {
-            font-size: 0.9rem;
-            padding: 5px 15px;
-            color: white;
-            background: #007bff;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        .btn-return:hover {
-            background: #0056b3;
-        }
-
         .variables-table-container {
             margin: 20px auto;
             width: 90%;
@@ -110,13 +96,29 @@
         th {
             background: #34495e;
         }
+
+        .historique-table-container {
+            margin: 20px auto;
+            width: 90%;
+        }
+
+        .export-btn {
+            margin-bottom: 20px;
+        }
+
+        .add-variable-form input,
+        .add-variable-form button,
+        .add-variable-form select {
+            margin: 5px;
+            padding: 10px;
+        }
     </style>
 </head>
 
 <body>
     <!-- Bandeau supérieur -->
     <div class="header-banner">
-        <button class="btn-return" onclick="location.href='mini_usine.html'">Retour à la vue globale</button>
+        <button class="btn-return btn btn-primary" onclick="location.href='mini_usine.html'">Retour à la vue globale</button>
         <span>Zone 3 - Mini Usine</span>
         <img src="Admin.png" alt="Profile Image" class="profile-image" id="profileImage">
     </div>
@@ -126,10 +128,30 @@
         <img src="Zone 3.png" alt="Machine de Zone 3">
     </div>
 
+    <!-- Formulaire pour créer une nouvelle variable -->
+    <div class="add-variable-form">
+        <h3>Créer une Nouvelle Variable</h3>
+        <input type="text" id="nom_variable" placeholder="Nom de la Variable">
+        <input type="text" id="adresse_ip" placeholder="Adresse IP">
+        <input type="text" id="unite" placeholder="Unité">
+        <input type="number" id="seuil_min" placeholder="Seuil Min">
+        <input type="number" id="seuil_max" placeholder="Seuil Max">
+        <input type="text" id="enregistrement_modbus" placeholder="Enregistrement Modbus">
+        <select id="type">
+            <option value="" disabled selected>Choisir le Type</option>
+            <option value="Coils">Coils</option>
+            <option value="HoldingRegisters">Holding Registers</option>
+            <option value="DiscreteInputs">Discrete Inputs</option>
+            <option value="InputRegisters">Input Registers</option>
+        </select>
+        <button class="btn btn-success" onclick="addVariable()">Créer Variable</button>
+    </div>
+
     <!-- Tableau des variables -->
     <div class="variables-table-container">
         <h3>Variables de la Zone 3</h3>
-        <table id="variablesTable">
+        <button class="export-btn btn btn-primary" onclick="exportAllVariables()">Tout Exporter en CSV</button>
+        <table>
             <thead>
                 <tr>
                     <th>Nom de la Variable</th>
@@ -138,57 +160,261 @@
                     <th>Seuil Min</th>
                     <th>Seuil Max</th>
                     <th>Valeur Actuelle</th>
+                    <th>Enregistrement Modbus</th>
+                    <th>Historique</th>
+                    <th>Action</th>
                 </tr>
             </thead>
-            <tbody>
-                <!-- Les variables de Zone 3 seront ajoutées ici dynamiquement -->
-            </tbody>
+            <tbody id="variablesTableBody"></tbody>
         </table>
+    </div>
+
+    <!-- Tableau de l'historique des variables -->
+    <div class="historique-table-container">
+        <h3>Historique de la Variable Sélectionnée</h3>
+        <button class="export-btn btn btn-primary" onclick="exportCSV()">Exporter en CSV</button>
+        <table id="historiqueTable">
+            <thead>
+                <tr>
+                    <th>Horodatage</th>
+                    <th>Valeur</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <!-- Graphique dynamique des variables -->
+    <div class="chart-container">
+        <canvas id="variableChart"></canvas>
     </div>
 
     <!-- Bandeau des alarmes -->
     <div class="alarms-bandeau">
         <h5>Alarmes Actives :</h5>
-        <ul id="alarms-list" style="list-style: none; padding: 0;">
-            <!-- Les alarmes seront ajoutées ici dynamiquement -->
-        </ul>
+        <ul id="alarms-list" style="list-style: none; padding: 0;"></ul>
     </div>
 
+    <!-- JavaScript -->
     <script>
+        let variableHistory = [];
+        let chart; // Chart.js instance
+
         // Charger les variables de la Zone 3 depuis le backend
         function loadZone3Variables() {
             fetch('http://localhost:3000/api/variables?zone=Zone 3')
                 .then(response => response.json())
                 .then(data => {
-                    const variablesTable = document.getElementById('variablesTable').getElementsByTagName('tbody')[0];
+                    const variablesTable = document.getElementById('variablesTableBody');
                     variablesTable.innerHTML = '';
 
                     data.forEach(variable => {
                         const row = variablesTable.insertRow();
-
                         row.innerHTML = `
                             <td>${variable.nom_variable}</td>
                             <td>${variable.adresse_ip}</td>
                             <td>${variable.unite}</td>
                             <td>${variable.seuil_alerte_min}</td>
                             <td>${variable.seuil_alerte_max}</td>
-                            <td>${variable.valeur ? variable.valeur : 'N/A'}</td>
+                            <td>${variable.valeur !== undefined ? variable.valeur : 'N/A'}</td>
+                            <td>${variable.enregistrement_modbus}</td>
+                            <td><button class="btn btn-info btn-sm" onclick="loadVariableHistory(${variable.id_variable})">Voir Historique</button></td>
+                            <td><button class="btn btn-danger btn-sm" onclick="deleteVariable(${variable.id_variable})">Supprimer</button></td>
                         `;
-
-                        // Ajouter les alarmes au bandeau si nécessaire
-                        if ((variable.nom_variable.toLowerCase().includes('defaut') ||
-                            variable.nom_variable.toLowerCase().includes('securite') ||
-                            variable.nom_variable.toLowerCase().includes('urgence')) &&
-                            variable.valeur === 0) {
-                            const alarmsList = document.getElementById('alarms-list');
-                            const li = document.createElement('li');
-                            li.textContent = variable.nom_variable;
-                            alarmsList.appendChild(li);
-                        }
                     });
                 })
                 .catch(error => {
                     console.error('Erreur lors du chargement des variables de la Zone 3:', error);
+                });
+        }
+
+        // Fonction pour ajouter une nouvelle variable
+        function addVariable() {
+            const nom_variable = document.getElementById('nom_variable').value;
+            const adresse_ip = document.getElementById('adresse_ip').value;
+            const unite = document.getElementById('unite').value;
+            const seuil_min = document.getElementById('seuil_min').value;
+            const seuil_max = document.getElementById('seuil_max').value;
+            const enregistrement_modbus = document.getElementById('enregistrement_modbus').value;
+            const type = document.getElementById('type').value; // Obtenir la valeur du select
+            const zone = 'Zone 3';
+
+            // Vérifier si tous les champs sont remplis
+            if (!nom_variable || !adresse_ip || !enregistrement_modbus || !zone || !type) {
+                alert('Veuillez remplir tous les champs requis.');
+                return;
+            }
+
+            fetch('http://localhost:3000/api/variables', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    nom_variable,
+                    adresse_ip,
+                    unite,
+                    seuil_alerte_min: seuil_min,
+                    seuil_alerte_max: seuil_max,
+                    enregistrement_modbus,
+                    zone,
+                    type
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert(data.message);
+                    loadZone3Variables(); // Recharger la liste des variables
+                } else {
+                    alert(data.error);
+                }
+            })
+            .catch(error => {
+                console.error("Erreur lors de l'ajout de la variable :", error);
+            });
+        }
+
+        // Fonction pour supprimer une variable par son ID
+        function deleteVariable(id_variable) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer cette variable ?')) {
+                fetch(`http://localhost:3000/api/variables/${id_variable}`, {
+                    method: 'DELETE'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        alert('Variable supprimée avec succès.');
+                        loadZone3Variables(); // Recharger les variables après la suppression
+                    } else {
+                        console.error('Erreur lors de la suppression de la variable');
+                        alert('Erreur lors de la suppression de la variable.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur lors de la suppression de la variable:', error);
+                    alert('Erreur lors de la suppression de la variable.');
+                });
+            }
+        }
+
+        // Charger l'historique d'une variable
+        function loadVariableHistory(id_variable) {
+            fetch(`http://localhost:3000/api/variables/${id_variable}/historique`)
+                .then(response => response.json())
+                .then(data => {
+                    variableHistory = data;
+                    const historiqueTable = document.getElementById('historiqueTable').getElementsByTagName('tbody')[0];
+                    historiqueTable.innerHTML = '';
+
+                    data.forEach(entry => {
+                        const row = historiqueTable.insertRow();
+                        row.innerHTML = `
+                            <td>${entry.horodatage}</td>
+                            <td>${entry.valeur}</td>
+                        `;
+                    });
+
+                    updateChart();
+                })
+                .catch(error => {
+                    console.error("Erreur lors du chargement de l'historique de la variable:", error);
+                });
+        }
+
+        // Fonction pour mettre à jour le graphique dynamique
+        function updateChart() {
+            const ctx = document.getElementById('variableChart').getContext('2d');
+            const labels = variableHistory.map(entry => entry.horodatage);
+            const data = variableHistory.map(entry => entry.valeur);
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Valeur de la variable au fil du temps',
+                        data: data,
+                        fill: false,
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'minute'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Fonction pour exporter l'historique en CSV
+        function exportCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Horodatage, Valeur\n";
+
+            variableHistory.forEach(entry => {
+                csvContent += `${entry.horodatage}, ${entry.valeur}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "historique_variable.csv");
+            document.body.appendChild(link);
+            link.click();
+        }
+
+        // Fonction pour exporter toutes les variables en CSV avec historique
+        function exportAllVariables() {
+            fetch('http://localhost:3000/api/variables?zone=Zone 3')
+                .then(response => response.json())
+                .then(async variables => {
+                    let csvContent = "data:text/csv;charset=utf-8,";
+                    csvContent += "Nom de la Variable, Adresse IP, Unité, Seuil Min, Seuil Max, Valeur Actuelle, Enregistrement Modbus, Type, Historique (Horodatage:Valeur)\n";
+
+                    for (const variable of variables) {
+                        let historiqueText = "";
+
+                        try {
+                            const response = await fetch(`http://localhost:3000/api/variables/${variable.id_variable}/historique`);
+                            const historique = await response.json();
+
+                            historique.forEach(entry => {
+                                historiqueText += `${entry.horodatage}:${entry.valeur} | `;
+                            });
+
+                            if (historiqueText.endsWith(" | ")) {
+                                historiqueText = historiqueText.slice(0, -3);
+                            }
+
+                        } catch (error) {
+                            console.error(`Erreur lors de la récupération de l'historique pour la variable ${variable.nom_variable}:`, error);
+                        }
+
+                        csvContent += `${variable.nom_variable}, ${variable.adresse_ip}, ${variable.unite}, ${variable.seuil_alerte_min}, ${variable.seuil_alerte_max}, ${variable.valeur !== undefined ? variable.valeur : 'N/A'}, ${variable.enregistrement_modbus}, ${variable.type}, "${historiqueText}"\n`;
+                    }
+
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", "variables_zone3_avec_historique.csv");
+                    document.body.appendChild(link);
+                    link.click();
+                })
+                .catch(error => {
+                    console.error("Erreur lors de l'export des variables :", error);
                 });
         }
 

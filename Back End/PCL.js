@@ -5,7 +5,7 @@ const clientZ3 = new ModbusRTU();
 
 // Configuration de la base de données
 const pool = mysql.createPool({
-    host: 'db',  // Assurez-vous que cela est bien 'db' pour correspondre au nom du service Docker
+    host: 'db',
     user: 'root',
     password: 'root',
     database: 'automate',
@@ -18,7 +18,7 @@ const pool = mysql.createPool({
 // Fonction de connexion au PLC de la Zone 3
 async function connectPLCZ3() {
     try {
-        await clientZ3.connectTCP("172.16.1.23", { port: 502, timeout: 5000 }); // Connexion au PLC Z3
+        await clientZ3.connectTCP("172.16.1.23", { port: 502, timeout: 5000 });
         clientZ3.setID(1);
         console.log("Connexion au PLC Z3 réussie");
     } catch (err) {
@@ -38,8 +38,31 @@ async function readAllCoilsFromPLCZ3() {
                 try {
                     // Lire le registre spécifique du PLC Z3
                     const data = await clientZ3.readCoils(variable.enregistrement_modbus, 1);
-                    const value = data.data[0]; // Récupérer la première valeur (true ou false)
-                    console.log(`Valeur de la variable "${variable.nom_variable}" (registre ${variable.enregistrement_modbus}) : ${value}`);
+                    const currentValue = data.data[0];
+
+                    // Vérifier la dernière valeur enregistrée dans historique_variables
+                    const [lastRecorded] = await connection.query(
+                        "SELECT valeur FROM historique_variables WHERE id_variable = ? ORDER BY horodatage DESC LIMIT 1",
+                        [variable.id_variable]
+                    );
+
+                    const lastValue = lastRecorded.length > 0 ? lastRecorded[0].valeur : null;
+
+                    // Si la valeur a changé, l'archiver dans la base de données
+                    if (lastValue !== currentValue) {
+                        await connection.query(
+                            "INSERT INTO historique_variables (id_variable, valeur, horodatage) VALUES (?, ?, NOW())",
+                            [variable.id_variable, currentValue]
+                        );
+
+                        // Mettre à jour la valeur actuelle de la variable dans la table variables
+                        await connection.query(
+                            "UPDATE variables SET valeur = ? WHERE id_variable = ?",
+                            [currentValue, variable.id_variable]
+                        );
+
+                        console.log(`Valeur modifiée de "${variable.nom_variable}" (registre ${variable.enregistrement_modbus}) : ${currentValue}`);
+                    }
                 } catch (plcError) {
                     console.error(`Erreur lors de la lecture de la variable ${variable.nom_variable} :`, plcError.message);
                 }

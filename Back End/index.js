@@ -107,7 +107,7 @@ app.get('/api/automates', async (req, res) => {
     }
 });
 
-// Route pour récupérer les variables par zone
+// Route pour récupérer les variables par zone, avec la dernière valeur enregistrée
 app.get('/api/variables', async (req, res) => {
     const zone = req.query.zone;
 
@@ -118,11 +118,69 @@ app.get('/api/variables', async (req, res) => {
     let connection;
     try {
         connection = await pool.getConnection();
-        const [rows] = await connection.query('SELECT * FROM variables WHERE zone = ?', [zone]);
+        const [rows] = await connection.query(`
+            SELECT v.*, hv.valeur AS valeur_actuelle
+            FROM variables v
+            LEFT JOIN (
+                SELECT id_variable, valeur, MAX(horodatage) AS horodatage
+                FROM historique_variables
+                GROUP BY id_variable
+            ) hv ON v.id_variable = hv.id_variable
+            WHERE v.zone = ?
+        `, [zone]);
         res.status(200).json(rows);
     } catch (error) {
         console.error('Erreur lors de la récupération des variables :', error);
         res.status(500).send('Erreur serveur');
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// Route pour ajouter une nouvelle variable
+app.post('/api/variables', async (req, res) => {
+    const { nom_variable, adresse_ip, unite, seuil_alerte_min, seuil_alerte_max, enregistrement_modbus, zone, type } = req.body;
+
+    // Vérifier que les champs requis sont présents
+    if (!nom_variable || !adresse_ip || !enregistrement_modbus || !zone || !type) {
+        return res.status(400).json({ error: 'Les champs nom_variable, adresse_ip, enregistrement_modbus, zone et type sont requis.' });
+    }
+
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        await connection.query(
+            `INSERT INTO variables 
+            (nom_variable, adresse_ip, unite, seuil_alerte_min, seuil_alerte_max, enregistrement_modbus, zone, type, date_creation, date_modification) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            [nom_variable, adresse_ip, unite, seuil_alerte_min, seuil_alerte_max, enregistrement_modbus, zone, type]
+        );
+        res.status(201).json({ message: 'Variable ajoutée avec succès.' });
+    } catch (error) {
+        console.error('Erreur lors de l\'ajout de la variable :', error);
+        res.status(500).json({ error: 'Erreur serveur lors de l\'ajout de la variable : ' + error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// Route pour supprimer une variable
+app.delete('/api/variables/:id_variable', async (req, res) => {
+    const { id_variable } = req.params;
+
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        const [result] = await connection.query('DELETE FROM variables WHERE id_variable = ?', [id_variable]);
+
+        if (result.affectedRows > 0) {
+            res.status(200).json({ message: 'Variable supprimée avec succès.' });
+        } else {
+            res.status(404).json({ error: 'Variable non trouvée.' });
+        }
+    } catch (error) {
+        console.error('Erreur lors de la suppression de la variable :', error);
+        res.status(500).json({ error: 'Erreur serveur lors de la suppression.' });
     } finally {
         if (connection) connection.release();
     }
@@ -181,6 +239,44 @@ app.put('/api/automates/update-ip', async (req, res) => {
     } catch (error) {
         console.error('Erreur lors de la mise à jour de l\'adresse IP :', error);
         res.status(500).json({ error: 'Erreur serveur lors de la mise à jour.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// Route pour archiver les changements de valeur des variables
+app.post('/api/archiver-variable', async (req, res) => {
+    const { id_variable, valeur } = req.body;
+
+    if (id_variable === undefined || valeur === undefined) {
+        return res.status(400).json({ error: 'L\'id de la variable et sa valeur sont requis.' });
+    }
+
+    let connection;
+    try {
+        connection = await pool.getConnection();
+
+        // Vérifiez la dernière valeur enregistrée pour éviter la duplication si la valeur n'a pas changé
+        const [lastRecorded] = await connection.query(
+            'SELECT valeur FROM historique_variables WHERE id_variable = ? ORDER BY horodatage DESC LIMIT 1',
+            [id_variable]
+        );
+
+        const lastValue = lastRecorded.length > 0 ? lastRecorded[0].valeur : null;
+
+        if (lastValue !== valeur) {
+            // Insérer une nouvelle entrée dans la table historique_variables
+            await connection.query(
+                'INSERT INTO historique_variables (id_variable, valeur, horodatage) VALUES (?, ?, NOW())',
+                [id_variable, valeur]
+            );
+            res.status(200).json({ message: 'Valeur archivée avec succès.' });
+        } else {
+            res.status(200).json({ message: 'La valeur n\'a pas changé, aucun archivage nécessaire.' });
+        }
+    } catch (error) {
+        console.error('Erreur lors de l\'archivage de la variable :', error);
+        res.status(500).json({ error: 'Erreur serveur' });
     } finally {
         if (connection) connection.release();
     }

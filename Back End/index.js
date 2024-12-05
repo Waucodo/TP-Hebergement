@@ -3,13 +3,13 @@ const mysql = require('mysql2/promise');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
+const ModbusRTU = require('modbus-serial');
 
 const app = express();
 const PORT = 3000;
 
 // Middleware pour servir le dossier frontend comme des fichiers statiques
 app.use(express.static(path.join(__dirname, 'frontend')));
-
 app.use(cors());
 app.use(bodyParser.json());
 
@@ -24,6 +24,9 @@ const pool = mysql.createPool({
     queueLimit: 0,
 });
 
+// Modbus client pour PLC Z3
+const clientZ3 = new ModbusRTU();
+
 // Simuler un utilisateur connecté (à remplacer par une gestion des sessions)
 let currentUser = {
     id_operateur: 1,
@@ -31,80 +34,86 @@ let currentUser = {
     role: 'admin'
 };
 
+// Fonction de connexion au PLC de la Zone 3
+async function connectPLCZ3() {
+    try {
+        await clientZ3.connectTCP("172.16.1.23", { port: 502, timeout: 5000 });
+        clientZ3.setID(1);
+        console.log("Connexion au PLC Z3 réussie");
+    } catch (err) {
+        console.error("Erreur lors de la connexion au PLC Z3 :", err.message);
+    }
+}
+
+// Fonction pour lire les variables Coils et Holding Registers
+async function readAllFromPLCZ3() {
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        const [variables] = await connection.query("SELECT * FROM variables WHERE zone = 'Zone 3'");
+
+        if (variables.length > 0) {
+            for (const variable of variables) {
+                try {
+                    let currentValue;
+                    if (variable.type === 'Coils') {
+                        const data = await clientZ3.readCoils(variable.enregistrement_modbus, 1);
+                        currentValue = data.data[0];
+                    } else if (variable.type === 'HoldingRegisters') {
+                        const data = await clientZ3.readHoldingRegisters(variable.enregistrement_modbus, 1);
+                        currentValue = data.data[0];
+                    } else {
+                        continue; // Skip other types for now
+                    }
+
+                    // Vérifier la dernière valeur enregistrée dans historique_variables
+                    const [lastRecorded] = await connection.query(
+                        "SELECT valeur FROM historique_variables WHERE id_variable = ? ORDER BY horodatage DESC LIMIT 1",
+                        [variable.id_variable]
+                    );
+
+                    const lastValue = lastRecorded.length > 0 ? lastRecorded[0].valeur : null;
+
+                    // Si la valeur a changé, l'archiver dans la base de données
+                    if (lastValue !== currentValue) {
+                        await connection.query(
+                            "INSERT INTO historique_variables (id_variable, valeur, horodatage) VALUES (?, ?, NOW())",
+                            [variable.id_variable, currentValue]
+                        );
+
+                        // Mettre à jour la valeur actuelle de la variable dans la table variables
+                        await connection.query(
+                            "UPDATE variables SET valeur = ?, date_modification = NOW() WHERE id_variable = ?",
+                            [currentValue, variable.id_variable]
+                        );
+
+                        console.log(`Valeur modifiée de "${variable.nom_variable}" (registre ${variable.enregistrement_modbus}) : ${currentValue}`);
+                    }
+                } catch (plcError) {
+                    console.error(`Erreur lors de la lecture de la variable ${variable.nom_variable} :`, plcError.message);
+                }
+            }
+        } else {
+            console.log("Aucune variable trouvée pour la Zone 3 dans la base de données.");
+        }
+    } catch (error) {
+        console.error("Erreur lors de la récupération des variables depuis la BDD :", error.message);
+    } finally {
+        if (connection) connection.release();
+    }
+}
+
+// Connexion initiale au PLC de la Zone 3
+connectPLCZ3();
+
+// Lire toutes les variables toutes les 10 secondes
+setInterval(readAllFromPLCZ3, 10000);
+
+// Routes API
+
 // Route principale (sanity check)
 app.get('/', (req, res) => {
     res.send('API opérationnelle 🚀');
-});
-
-// Route pour récupérer des opérateurs
-app.get('/api/operateurs', async (req, res) => {
-    let connection;
-    try {
-        connection = await pool.getConnection();
-        const [rows] = await connection.query('SELECT * FROM operateurs');
-        res.status(200).json(rows);
-    } catch (error) {
-        console.error(error);
-        res.status(500).send('Erreur serveur');
-    } finally {
-        if (connection) connection.release();
-    }
-});
-
-// Route de connexion
-app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-        return res.status(400).json({ error: 'Nom d\'utilisateur et mot de passe requis.' });
-    }
-
-    let connection;
-    try {
-        connection = await pool.getConnection();
-
-        const [rows] = await connection.query(
-            'SELECT * FROM operateurs WHERE nom_operateur = ? AND password = ?',
-            [username, password]
-        );
-
-        if (rows.length > 0) {
-            currentUser = rows[0]; // Met à jour l'utilisateur connecté
-            res.status(200).json({ id: currentUser.id_operateur, username: currentUser.nom_operateur, role: currentUser.role });
-        } else {
-            res.status(401).json({ error: 'Nom d\'utilisateur ou mot de passe incorrect.' });
-        }
-    } catch (error) {
-        console.error('Erreur lors de la connexion :', error);
-        res.status(500).json({ error: 'Erreur serveur' });
-    } finally {
-        if (connection) connection.release();
-    }
-});
-
-// Route pour retourner la page de connexion (Log.html)
-app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend', 'Log.html'));
-});
-
-// Route pour retourner la page principale (index.html) après connexion réussie
-app.get('/index', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
-});
-
-// Route pour récupérer les informations des automates (zones et adresses IP)
-app.get('/api/automates', async (req, res) => {
-    let connection;
-    try {
-        connection = await pool.getConnection();
-        const [rows] = await connection.query('SELECT * FROM automates');
-        res.status(200).json(rows);
-    } catch (error) {
-        console.error('Erreur lors de la récupération des automates :', error);
-        res.status(500).send('Erreur serveur');
-    } finally {
-        if (connection) connection.release();
-    }
 });
 
 // Route pour récupérer les variables par zone, avec la dernière valeur enregistrée
@@ -119,13 +128,8 @@ app.get('/api/variables', async (req, res) => {
     try {
         connection = await pool.getConnection();
         const [rows] = await connection.query(`
-            SELECT v.*, hv.valeur AS valeur_actuelle
+            SELECT v.*, v.valeur AS valeur_actuelle
             FROM variables v
-            LEFT JOIN (
-                SELECT id_variable, valeur, MAX(horodatage) AS horodatage
-                FROM historique_variables
-                GROUP BY id_variable
-            ) hv ON v.id_variable = hv.id_variable
             WHERE v.zone = ?
         `, [zone]);
         res.status(200).json(rows);

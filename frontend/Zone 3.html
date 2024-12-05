@@ -348,8 +348,16 @@
                 });
         }
 
+        // Fonction pour démarrer la mise à jour automatique des données de la Zone 3
+        function startAutoUpdate() {
+            loadZone3Variables(); // Charger immédiatement
+
+            // Actualiser les données du tableau toutes les 5 secondes
+            setInterval(loadZone3Variables, 5000);
+        }
+
         // Charger les variables de Zone 3 au chargement de la page
-        window.onload = loadZone3Variables;
+        window.onload = startAutoUpdate;
     </script>
 </body>
 

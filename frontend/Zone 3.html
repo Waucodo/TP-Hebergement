@@ -207,7 +207,9 @@
                 .then(response => response.json())
                 .then(data => {
                     const variablesTable = document.getElementById('variablesTableBody');
+                    const alarmsList = document.getElementById('alarms-list');
                     variablesTable.innerHTML = '';
+                    alarmsList.innerHTML = '';
 
                     data.forEach(variable => {
                         const row = variablesTable.insertRow();
@@ -222,6 +224,20 @@
                             <td><button class="btn btn-info btn-sm" onclick="loadVariableHistory(${variable.id_variable}, '${variable.nom_variable}')">Voir Historique</button></td>
                             <td><button class="btn btn-danger btn-sm" onclick="deleteVariable(${variable.id_variable})">Supprimer</button></td>
                         `;
+
+                        // Vérifier si la variable est une alarme
+                        if (
+                            (variable.nom_variable.toLowerCase().includes('défaut') ||
+                            variable.nom_variable.toLowerCase().includes('sécurité') ||
+                            variable.nom_variable.toLowerCase().includes('urgence')) &&
+                            variable.nom_variable.toLowerCase() !== 'bouton poussoir acquitement defaut' &&
+                            variable.valeur_actuelle === 0
+                        ) {
+                            // Ajouter à la liste des alarmes actives
+                            const alarmItem = document.createElement('li');
+                            alarmItem.textContent = `${variable.nom_variable}`;
+                            alarmsList.appendChild(alarmItem);
+                        }
                     });
                 })
                 .catch(error => {
@@ -307,45 +323,6 @@
                     }
                 }
             });
-        }
-
-        // Fonction pour exporter l'historique en CSV
-        function exportCSV() {
-            let csvContent = `data:text/csv;charset=utf-8,Nom de la Variable: ${currentVariableName}\nHorodatage, Valeur\n`;
-
-            variableHistory.forEach(entry => {
-                csvContent += `${entry.horodatage}, ${entry.valeur}\n`;
-            });
-
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `historique_${currentVariableName}.csv`);
-            document.body.appendChild(link);
-            link.click();
-        }
-
-        // Fonction pour exporter toutes les variables en CSV
-        function exportAllVariables() {
-            fetch('http://localhost:3000/api/variables?zone=Zone 3')
-                .then(response => response.json())
-                .then(variables => {
-                    let csvContent = "data:text/csv;charset=utf-8,Nom de la Variable, Adresse IP, Unité, Seuil Min, Seuil Max, Valeur Actuelle, Enregistrement Modbus\n";
-
-                    variables.forEach(variable => {
-                        csvContent += `${variable.nom_variable}, ${variable.adresse_ip}, ${variable.unite}, ${variable.seuil_alerte_min}, ${variable.seuil_alerte_max}, ${(variable.valeur_actuelle !== null && variable.valeur_actuelle !== undefined) ? variable.valeur_actuelle : 'N/A'}, ${variable.enregistrement_modbus}\n`;
-                    });
-
-                    const encodedUri = encodeURI(csvContent);
-                    const link = document.createElement("a");
-                    link.setAttribute("href", encodedUri);
-                    link.setAttribute("download", "variables_zone3.csv");
-                    document.body.appendChild(link);
-                    link.click();
-                })
-                .catch(error => {
-                    console.error('Erreur lors de l\'export des variables :', error);
-                });
         }
 
         // Fonction pour démarrer la mise à jour automatique des données de la Zone 3

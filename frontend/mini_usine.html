@@ -188,35 +188,13 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Type</th>
-                        <th>Priorité</th>
-                        <th>Nom de l'alarme</th>
-                        <th>Message</th>
-                        <th>Date et heure</th>
+                        <th>Nom de la Variable</th>
+                        <th>Valeur</th>
+                        <th>Date et Heure</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td>Électrique</td>
-                        <td>Prio 1</td>
-                        <td>Onduleur 1</td>
-                        <td>Alarme défaut général</td>
-                        <td>15-Sep-13 10:11 AM</td>
-                    </tr>
-                    <tr>
-                        <td>Électrique</td>
-                        <td>Prio 1</td>
-                        <td>Onduleur 1</td>
-                        <td>Alarme défaut général</td>
-                        <td>14-Sep-13 10:11 AM</td>
-                    </tr>
-                    <tr>
-                        <td>Plomberie</td>
-                        <td>Prio 1</td>
-                        <td>Sous-sol 3</td>
-                        <td>Pompe de relevage N°6 Défaut niveau haut</td>
-                        <td>13-Sep-13 6:08 PM</td>
-                    </tr>
+                <tbody id="alarmsTableBody">
+                    <!-- Dernières alarmes -->
                 </tbody>
             </table>
         </div>
@@ -251,8 +229,33 @@
                 });
         }
 
+        // Charger les dernières alarmes
+        function loadLastThreeAlarms() {
+            fetch('http://localhost:3000/api/last-three-alarms')
+                .then(response => response.json())
+                .then(data => {
+                    const alarmsTableBody = document.getElementById('alarmsTableBody');
+                    alarmsTableBody.innerHTML = '';
+
+                    data.forEach(alarm => {
+                        const row = alarmsTableBody.insertRow();
+                        row.innerHTML = `
+                            <td>${alarm.nom_variable}</td>
+                            <td>${alarm.valeur}</td>
+                            <td>${new Date(alarm.horodatage).toLocaleString()}</td>
+                        `;
+                    });
+                })
+                .catch(error => {
+                    console.error('Erreur lors du chargement des alarmes:', error);
+                });
+        }
+
         // Appeler la fonction pour charger les informations de l'utilisateur
         loadCurrentUser();
+
+        // Charger les 3 dernières alarmes au chargement de la page
+        loadLastThreeAlarms();
 
         profileImage.addEventListener('click', () => {
             contextMenu.style.display = contextMenu.style.display === 'block' ? 'none' : 'block';

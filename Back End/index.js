@@ -116,6 +116,57 @@ app.get('/', (req, res) => {
     res.send('API opérationnelle 🚀');
 });
 
+// Route pour récupérer les opérateurs
+app.get('/api/operateurs', async (req, res) => {
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        const [rows] = await connection.query('SELECT * FROM operateurs');
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Erreur serveur');
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// Route de connexion
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Nom d\'utilisateur et mot de passe requis.' });
+    }
+
+    let connection;
+    try {
+        connection = await pool.getConnection();
+
+        const [rows] = await connection.query(
+            'SELECT * FROM operateurs WHERE nom_operateur = ? AND password = ?',
+            [username, password]
+        );
+
+        if (rows.length > 0) {
+            currentUser = rows[0]; // Met à jour l'utilisateur connecté
+            res.status(200).json({ id: currentUser.id_operateur, username: currentUser.nom_operateur, role: currentUser.role });
+        } else {
+            res.status(401).json({ error: 'Nom d\'utilisateur ou mot de passe incorrect.' });
+        }
+    } catch (error) {
+        console.error('Erreur lors de la connexion :', error);
+        res.status(500).json({ error: 'Erreur serveur' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// Route pour retourner la page de connexion (Log.html)
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'frontend', 'Log.html'));
+});
+
 // Route pour récupérer les variables par zone, avec la dernière valeur enregistrée
 app.get('/api/variables', async (req, res) => {
     const zone = req.query.zone;
@@ -135,6 +186,21 @@ app.get('/api/variables', async (req, res) => {
         res.status(200).json(rows);
     } catch (error) {
         console.error('Erreur lors de la récupération des variables :', error);
+        res.status(500).send('Erreur serveur');
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// Route pour récupérer les informations des automates (zones et adresses IP)
+app.get('/api/automates', async (req, res) => {
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        const [rows] = await connection.query('SELECT * FROM automates');
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error('Erreur lors de la récupération des automates :', error);
         res.status(500).send('Erreur serveur');
     } finally {
         if (connection) connection.release();
@@ -161,50 +227,25 @@ app.get('/api/variables/:id_variable/historique', async (req, res) => {
     }
 });
 
-// Route pour ajouter une nouvelle variable
-app.post('/api/variables', async (req, res) => {
-    const { nom_variable, adresse_ip, unite, seuil_alerte_min, seuil_alerte_max, enregistrement_modbus, zone, type } = req.body;
-
-    // Vérifier que les champs requis sont présents
-    if (!nom_variable || !adresse_ip || !enregistrement_modbus || !zone || !type) {
-        return res.status(400).json({ error: 'Les champs nom_variable, adresse_ip, enregistrement_modbus, zone et type sont requis.' });
-    }
-
+// Route pour obtenir les trois dernières alarmes
+app.get('/api/last-three-alarms', async (req, res) => {
     let connection;
     try {
         connection = await pool.getConnection();
-        await connection.query(
-            `INSERT INTO variables 
-            (nom_variable, adresse_ip, unite, seuil_alerte_min, seuil_alerte_max, enregistrement_modbus, zone, type, date_creation, date_modification) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-            [nom_variable, adresse_ip, unite, seuil_alerte_min, seuil_alerte_max, enregistrement_modbus, zone, type]
-        );
-        res.status(201).json({ message: 'Variable ajoutée avec succès.' });
+        const [rows] = await connection.query(`
+            SELECT hv.horodatage, hv.valeur, v.nom_variable 
+            FROM historique_variables hv 
+            JOIN variables v ON hv.id_variable = v.id_variable 
+            WHERE v.zone = 'Zone 3' 
+            AND (v.nom_variable LIKE '%defaut%' OR v.nom_variable LIKE '%securite%' OR v.nom_variable LIKE '%urgence%')
+            AND v.nom_variable NOT LIKE '%acquit%'
+            ORDER BY hv.horodatage DESC
+            LIMIT 3
+        `);
+        res.status(200).json(rows);
     } catch (error) {
-        console.error('Erreur lors de l\'ajout de la variable :', error);
-        res.status(500).json({ error: 'Erreur serveur lors de l\'ajout de la variable : ' + error.message });
-    } finally {
-        if (connection) connection.release();
-    }
-});
-
-// Route pour supprimer une variable
-app.delete('/api/variables/:id_variable', async (req, res) => {
-    const { id_variable } = req.params;
-
-    let connection;
-    try {
-        connection = await pool.getConnection();
-        const [result] = await connection.query('DELETE FROM variables WHERE id_variable = ?', [id_variable]);
-
-        if (result.affectedRows > 0) {
-            res.status(200).json({ message: 'Variable supprimée avec succès.' });
-        } else {
-            res.status(404).json({ error: 'Variable non trouvée.' });
-        }
-    } catch (error) {
-        console.error('Erreur lors de la suppression de la variable :', error);
-        res.status(500).json({ error: 'Erreur serveur lors de la suppression.' });
+        console.error('Erreur lors de la récupération des alarmes :', error);
+        res.status(500).send('Erreur serveur');
     } finally {
         if (connection) connection.release();
     }
@@ -212,7 +253,6 @@ app.delete('/api/variables/:id_variable', async (req, res) => {
 
 // Route pour obtenir l'utilisateur connecté
 app.get('/api/current-user', (req, res) => {
-    // En situation réelle, cela devrait vérifier une session ou un token
     if (currentUser) {
         res.status(200).json(currentUser);
     } else {

@@ -218,6 +218,35 @@ app.get('/api/current-user', (req, res) => {
         res.status(401).json({ error: 'Utilisateur non connecté.' });
     }
 });
+// Route pour mettre à jour l'adresse IP d'une zone
+app.put('/api/automates/update-ip', async (req, res) => {
+    const { zone, ipAddress } = req.body;
+
+    // Vérification des données requises
+    if (!zone || !ipAddress) {
+        return res.status(400).json({ error: 'La zone et l\'adresse IP sont requises.' });
+    }
+
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        const [result] = await connection.query(
+            'UPDATE automates SET adresse_ip = ? WHERE zone = ?',
+            [ipAddress, zone]
+        );
+
+        if (result.affectedRows > 0) {
+            res.status(200).json({ message: 'Adresse IP mise à jour avec succès.' });
+        } else {
+            res.status(404).json({ error: 'Zone non trouvée.' });
+        }
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour de l\'adresse IP :', error);
+        res.status(500).json({ error: 'Erreur serveur.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
 
 // Lancement du serveur
 app.listen(PORT, () => {

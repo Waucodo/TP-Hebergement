@@ -128,6 +128,8 @@
             transform: scale(1.05);
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         }
+
+        
     </style>
 </head>
 <body>
@@ -151,8 +153,8 @@
         </div>
 
         <!-- Bouton Retour à la Mini Usine -->
-        <button class="back-button" onclick="goToMiniUsine()">Direction la Mini Usine</button>
-    </div>
+<button class="back-button" onclick="window.location.href='mini_usine.html';">Direction la Mini Usine</button>
+
 
     <!-- Modal pour modifier l'adresse IP -->
     <div class="modal fade" id="ipModal" tabindex="-1" aria-labelledby="ipModalLabel" aria-hidden="true">
@@ -178,9 +180,7 @@
             </div>
         </div>
     </div>
-
     <script>
-        // Gestion du menu contextuel
         const contextMenu = document.getElementById('contextMenu');
         const profileImage = document.getElementById('profileImage');
         const userRoleElement = document.getElementById('userRole');
@@ -195,18 +195,12 @@
             }
         });
 
-        // Charger le rôle de l'utilisateur depuis le backend
         function loadCurrentUser() {
             fetch('http://localhost:3000/api/current-user', {
                 method: 'GET',
                 credentials: 'include'
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Échec de la récupération des informations de l\'utilisateur.');
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(user => {
                 if (user.role === 'admin') {
                     userRoleElement.textContent = 'Utilisateur : Admin';
@@ -220,31 +214,16 @@
                 }
             })
             .catch(error => {
-                console.error('Erreur lors de la récupération des informations de l\'utilisateur:', error);
-                alert('Erreur lors de la récupération des informations de l\'utilisateur. Veuillez vous reconnecter.');
+                console.error('Erreur utilisateur:', error);
+                alert('Reconnexion requise.');
                 window.location.href = 'Log.html';
             });
         }
-
-        // Charger les informations de l'utilisateur au chargement de la page
-        window.onload = loadCurrentUser;
 
         function logout() {
-            // Déconnexion de l'utilisateur
-            fetch('http://localhost:3000/api/logout', {
-                method: 'POST',
-                credentials: 'include'
-            })
-            .then(() => {
-                window.location.href = 'Log.html';
-            })
-            .catch(error => {
-                console.error('Erreur lors de la déconnexion:', error);
-            });
-        }
-
-        function goToMiniUsine() {
-            window.location.href = 'mini_usine.html';
+            fetch('http://localhost:3000/api/logout', { method: 'POST' })
+                .then(() => { window.location.href = 'Log.html'; })
+                .catch(error => console.error('Erreur logout:', error));
         }
 
         function editIP(zone) {
@@ -255,68 +234,42 @@
         function saveIP() {
             const zone = document.getElementById('zoneName').value;
             const ipAddress = document.getElementById('ipAddress').value;
-
-            // Envoi de la requête au backend pour mettre à jour l'adresse IP
             fetch('http://localhost:3000/api/automates/update-ip', {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    zone: zone,
-                    ipAddress: ipAddress,
-                    modifiedBy: userRoleElement.textContent.includes('Admin') ? 'admin' : 'technicien'
-                }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ zone, ipAddress })
             })
             .then(response => response.json())
-            .then(data => {
-                if (data.message) {
-                    alert(data.message); // Affiche un message de succès
-                } else if (data.error) {
-                    alert(data.error); // Affiche une erreur
-                }
-                loadAutomates(); // Recharger les zones pour mettre à jour les IP affichées
-            })
-            .catch(error => {
-                console.error('Erreur:', error);
-                alert('Une erreur est survenue lors de la mise à jour de l\'adresse IP.');
-            });
-
-            // Fermer la fenêtre modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('ipModal'));
-            modal.hide();
+            .then(() => loadAutomates())
+            .catch(error => console.error('Erreur sauvegarde IP:', error));
         }
 
-        // Charger les informations des automates depuis le backend
         function loadAutomates() {
             fetch('http://localhost:3000/api/automates')
                 .then(response => response.json())
                 .then(data => {
                     const container = document.getElementById('cabinetContainer');
-                    container.innerHTML = ''; // Efface tout avant de charger
-
+                    container.innerHTML = '';
                     data.forEach(automate => {
-                        const cabinet = document.createElement('div');
-                        cabinet.classList.add('cabinet');
-                        cabinet.innerHTML = `
-                            <h4>${automate.zone}</h4>
-                            <p>IP: ${automate.adresse_ip ? automate.adresse_ip : 'Aucune IP définie'}</p>
-                            <div class="gear" onclick="editIP('${automate.zone}')">
-                                <img src="Engrenage.png" alt="Engrenage">
+                        container.innerHTML += `
+                            <div class="cabinet">
+                                <h4>${automate.zone}</h4>
+                                <p>IP: ${automate.adresse_ip ?? 'Aucune IP définie'}</p>
+                                <div class="gear" onclick="editIP('${automate.zone}')">
+                                    <img src="Engrenage.png" alt="Engrenage">
+                                </div>
                             </div>
                         `;
-                        container.appendChild(cabinet);
                     });
                 })
-                .catch(error => {
-                    console.error('Erreur lors du chargement des automates:', error);
-                });
+                .catch(error => console.error('Erreur chargement automates:', error));
         }
 
-        // Charger les automates au chargement de la page
-        loadAutomates();
+        window.onload = () => {
+            loadCurrentUser();
+            loadAutomates();
+        };
     </script>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
